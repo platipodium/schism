@@ -47,8 +47,8 @@ notifications:
 
 env:
   - global:
-    - SCHISM_DIR=${TRAVIS_BUILD_DIR}/platipodium/schism
-    - SCHISM_BUILD_DIR=${TRAVIS_BUILD_DIR}/build
+    - SCHISM_DIR=${TRAVIS_BUILD_DIR}
+    - SCHISM_BUILD_DIR=${TRAVIS_BUILD_DIR}/../build
     - MAKEFLAGS="-j 4"
 
 before_install:
