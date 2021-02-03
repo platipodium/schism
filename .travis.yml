@@ -6,13 +6,13 @@
 
 language: c # There is no Fortran support yet in travis, so we emulate it
 
-dist: trusty
+dist: focal
 sudo: false
 git:
   depth: 1
 
 branches:
-  only: travis-ci
+  only: [ travis-ci master ]
 
 cache:
   - brew: true
@@ -25,14 +25,12 @@ addons:
   apt:
     packages:
       - gfortran
-      #- clang # is provided by default
       - libopenmpi-dev
       - libnetcdff5
       - libnetcdf-dev
       - libnetcdfc7
       - netcdf-bin
       #- libmpich-dev
-      #- mpich
       #
   brew:
     - gfortran
@@ -52,13 +50,17 @@ notifications:
 
 env:
   - global:
-    - SCHISM_DIR=${TRAVIS_BUILD_DIR}
-    - SCHISM_BUILD_DIR=${TRAVIS_BUILD_DIR}/../build
+    - SCHISM_DIR=${TRAVIS_BUILD_DIR}/platipodium/schism
+    - SCHISM_BUILD_DIR=${TRAVIS_BUILD_DIR}/build
+
+before_install:
+  - mkdir -p ${SCHISM_BUILD_DIR}
+  - echo $(nf-config --all)
+  - echo $(mpifort --version)
 
 install:
-  - mkdir -p ${SCHISM_BUILD_DIR}
   - cd ${SCHISM_BUILD_DIR}
-  - cmake ${TRAVIS_BUILD_DIR}/src
+  - cmake ${SCHISM_DIR}/src
   - make pschism
 
 before_script:
