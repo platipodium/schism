@@ -8,7 +8,7 @@ language: c # There is no Fortran support yet in travis, so we emulate it
 
 os: [ linux osx ]
 
-osx_image: xcode12.2
+osx_image: xcode12.3 # This is Big Sur
 dist: focal
 
 git:
@@ -16,6 +16,10 @@ git:
 
 branches:
   only: [ travis-ci master ]
+
+compiler:
+  - clang
+  - gcc
 
 cache:
   - brew: true
@@ -42,12 +46,14 @@ addons:
       - netcdf-bin
       #- libmpich-dev
       #
-  brew:
+  homebrew:
     - gfortran
     - open-mpi
     - netcdf
 
 before_install:
+  - test -n $CC  && unset CC # avoid problem with MPI
+  - test -n $CXX && unset CXX
   - echo  ${SCHISM_BUILD_DIR}
   - mkdir -p ${SCHISM_BUILD_DIR}
   - echo $(nc-config --all)
