@@ -7,12 +7,11 @@
 language: c # There is no Fortran support yet in travis, so we emulate it
 
 dist: focal
-sudo: false
 git:
   depth: 1
 
 branches:
-  only: travis-ci
+  only: [ travis-ci master ]
 
 cache:
   - brew: true
@@ -42,8 +41,6 @@ os:
   - osx
 
 osx_image: xcode12.2
-
-before_install:
 
 notifications:
   email: true
