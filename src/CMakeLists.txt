@@ -33,8 +33,6 @@ add_definitions("-DSCHISM")
 ########### Announce compiler #####
 message(STATUS "\n### Your compiler is ${CMAKE_Fortran_COMPILER}")
 
-
-
 ########### Build types are Release, Debug and RelWithDebInfo (Release with debug info) #####
 if (NOT CMAKE_BUILD_TYPE)
     message(STATUS "\n### No CMAKE_BUILD_TYPE selected in command or cache, default to Release. \nAlternatives are Debug and RelWithDebInfo")

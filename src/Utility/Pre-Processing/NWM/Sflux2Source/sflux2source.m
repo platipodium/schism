@@ -1,16 +1,43 @@
-% clear;
+function []=sflux2source(varargin)
 %----------------user inputs------------------
 % make sure wdir has the following files:
-%   sflux2source.prop (use xmgredit to make a ele-based prop for elements that need sources from sflux),
+%   sflux2source.prop
+%     (use xmgredit to make an ele-based prop file for elements (prop value=1) that need sources from sflux,
+%     if you don't have xmgredit, use the alternative method shown in /Sflux2Source/Sample_Prop/)
 %   sflux/ 
 %   hgrid.ll (for interpolation) 
 %   hgrid.utm.26918 (for converting precip. to flux);
+%
+% Important! To speed up the interpolation, "i_lonlat_const=true" assumes 
+%   the lon/lat does not change among sflux*prc*.nc.
+%   Slight differences in vsource.th.2 exist between
+%   i_lonlat_const=true and i_lonlat_const=false
 
-%example wdir='/sciclone/schism10/feiye/work/Gulf_Stream/RUN19x/Sflux2source/';
-wdir='./';
-sflux_files = dir([wdir '/sflux/sflux*prc_1*.nc'])
-start_time_run=datenum('2017-8-4');
-min_val=-0.001; max_val=100;  %values outside this range will be warned
+if nargin==0
+    %Sample inputs. You can change the variables here if you want to run this script directly.
+    %1) it is recommended to copy (cp -rL) the entire script folder (Sflux2Source) into your run dir to keep a record of the scripts used
+    wdir='./'; 
+    %2) look for sflux files using the 'dir' function. Depending on your needs,
+    %   you may change the path, e.g., sflux_files=dir('../sflux/sflux*prc_1*.nc'),
+    %   or set the sflux dataset number, e.g., sflux_files = dir([some_dir sflux/sflux*prc_2*.nc']); 
+    sflux_files = dir([wdir '/sflux/sflux*prc_1*.nc']); 
+    %3) start time of the SCHISM run
+    start_time_run=datenum('2018-9-14 12:00:00');
+    %4) values outside this range will be warned
+    min_val=-0.001; max_val=100;  
+    %5) true: assuming lon/lat does not change in sflux files (faster); false: otherwise (slower)
+    i_lonlat_const=true;
+elseif nargin==6
+    %Run the script like a function
+    wdir=varargin{1,1};
+    sflux_files=varargin{1,2};
+    start_time_run=varargin{1,3};
+    min_val=varargin{1,4};
+    max_val=varargin{1,5};
+    i_lonlat_const=varargin{1,6};
+else
+    disp('wrong number of input arguments');
+end
 %----------------end user inputs------------------
 
 %---------------outputs--------------
@@ -23,57 +50,42 @@ min_val=-0.001; max_val=100;  %values outside this range will be warned
 %  msource.th.2
 %------------------------------------
 
+disp(['converting sflux files from <' sflux_files(1).name '> to <' sflux_files(end).name '>'])
+
 rho_water = 1000; %kg/m^3;
 
 %read hgrid in meters
 hgrid_name=('hgrid.utm.26918');
-if exist([wdir 'hgrid.utm.mat'],'file')
-    load([wdir 'hgrid.utm.mat']);%plot grid boundary
-else
-    display(['reading ' hgrid_name ', this can take several minutes for the first time']);
-    [ne,np,node,ele,i34,bndnode,open_bnds,land_bnds,ilb_island]=load_hgrid(wdir,hgrid_name,hgrid_name,0);
-    save([wdir 'hgrid.utm.mat'],'ne', 'np', 'node', 'ele', 'i34', 'bndnode','open_bnds','land_bnds','ilb_island');
-end
-
+display(['reading ' hgrid_name]);
+[ne,np,node,ele,i34,bndnode,open_bnds,land_bnds,ilb_island]=load_hgrid(wdir,hgrid_name,hgrid_name,0);
+display(['done reading ' hgrid_name]);
+    
+display(['calculating element area based on ' hgrid_name]);
 area_e=nan(ne,1); precip2flux=area_e;
-for i=1:ne
-    xnd_e=node(ele(i,1:i34(i)),2);
-    ynd_e=node(ele(i,1:i34(i)),3);
-    area_e(i)=polyarea(xnd_e(1:i34(i)),ynd_e(1:i34(i)));
-    precip2flux(i) = 1/rho_water*area_e(i); % convert from  1 kg/m^2/s to m^3/s
+for k=3:4
+    nn = find(i34==k);
+    area_x=reshape(node(ele(nn,1:k)',2),k,length(nn));
+    area_y=reshape(node(ele(nn,1:k)',3),k,length(nn));
+    area_e(nn)=polyarea(area_x,area_y);
 end
+precip2flux = 1/rho_water*area_e; % convert from  1 kg/m^2/s to m^3/s
 
 %read hgrid and save a copy
 hgrid_name=('hgrid.ll');
-if exist([wdir 'hgrid.ll.mat'],'file')
-    load([wdir 'hgrid.ll.mat']);%plot grid boundary
-    figure; 
-    for i=1:length(open_bnds)
-        line(node(open_bnds{i},2),node(open_bnds{i},3),'LineWidth',1,'Color','k'); hold on;
-    end
-    for i=1:length(land_bnds)
-        line(node(land_bnds{i},2),node(land_bnds{i},3),'LineWidth',1,'Color','k'); hold on;
-        if ilb_island(i)==1 %island
-            nd1=land_bnds{i}(end); nd2=land_bnds{i}(1);
-            line(node([nd1 nd2],2),node([nd1 nd2],3),'LineWidth',1,'Color','k'); hold on;
-        end
-    end
-else
-    display(['reading ' hgrid_name ', this can take several minutes for the first time']);
-    [ne,np,node,ele,i34,bndnode,open_bnds,land_bnds,ilb_island]=load_hgrid(wdir,hgrid_name,hgrid_name,2);
-    save([wdir 'hgrid.ll.mat'],'ne', 'np', 'node', 'ele', 'i34', 'bndnode','open_bnds','land_bnds','ilb_island');
-end
+display(['reading ' hgrid_name]);
+[ne,np,node,ele,i34,bndnode,open_bnds,land_bnds,ilb_island]=load_hgrid(wdir,hgrid_name,hgrid_name,0);
+display(['done reading ' hgrid_name]);
 
-lon_e=nan(ne,1); lat_e=nan(ne,1);
-for i=1:ne
-    lon_e(i)=mean(node(ele(i,1:i34(i)),2));
-    lat_e(i)=mean(node(ele(i,1:i34(i)),3));
-end
+
+display(['calculating element center based on ' hgrid_name]);
+node=[node; [nan nan nan nan]]; % add a dummy node at the end
+ele(isnan(ele))=np+1;
+lon_e=nanmean(reshape(node(ele',2),4,ne)',2);
+lat_e=nanmean(reshape(node(ele',3),4,ne)',2);
+node=node(1:end-1,:); ele(ele==np+1)=nan; %restore node and ele
 
 %read elements that need source
 iSS=load([wdir 'sflux2source.prop']); iSS=find(iSS(:,2)==1);
-
-
 
 
 nf = length(sflux_files);
@@ -102,18 +114,58 @@ end
 
 time_stamp=0;
 this_sflux_time=sflux_base_time;
+F_interp=[]; seq3=[1 2 3 1 2];
 for i=1:nf
     fname = sflux_files(i).name
     prate = ncread([wdir '/sflux/' fname],'prate'); %kg/m^2/s
     if min(prate(:))<-0.001
-        display('Negative Precip');
+        disp('Negative Precip');
     end
     for j=1:nt
         this_sflux_time=this_sflux_time+dt/86400;
-        if (this_sflux_time >= start_time_run) 
-            prate_interp = griddata(double(lat),double(lon),double(prate(:,:,j)),lat_e(iSS),lon_e(iSS));
-            if ~(max(prate_interp(:)) < max_val & min(prate_interp(:)) > min_val) 
-              display(['warning: value out of range']);
+        if (this_sflux_time >= start_time_run)
+            
+            this_prate=prate(:,:,j);
+            if isempty(F_interp)
+                F_interp = scatteredInterpolant(double(lat(:)),double(lon(:)),double(this_prate(:)));                
+                
+                if i_lonlat_const % assuming lon/lat of sflux*.nc does not change
+                    disp('calculating weights for spatial interpolation')
+                    t=delaunayn([double(lat(:)),double(lon(:))]);
+                    f=double(this_prate(:));
+                    i_ele = tsearchn([double(lat(:)),double(lon(:))],t,[lat_e(iSS),lon_e(iSS)]);
+                    i_area_cor=-ones(length(i_ele),3);
+
+                    for k=1:3
+                        area_lat0 = [lat_e(iSS) lat(t(i_ele,seq3(k+1:k+2)))]';
+                        area_lon0 = [lon_e(iSS) lon(t(i_ele,seq3(k+1:k+2)))]';
+                        area_lat = lat(t(i_ele,:))'; area_lon = lon(t(i_ele,:))';
+                        i_area_cor(:,k) = abs(polyarea(area_lat0,area_lon0)./polyarea(area_lat,area_lon));
+                    end
+
+                    II=find(i_area_cor<0 | i_area_cor>1);
+                    if ~isempty(II)
+                        disp('error in area coordinates')
+                    end
+                    disp('done calculating weights for spatial interpolation')
+                end
+            else
+                if ~i_lonlat_const
+                    F_interp.Values=double(this_prate(:));
+                end
+            end
+            if ~i_lonlat_const
+                prate_interp = F_interp(lat_e(iSS),lon_e(iSS));
+            else
+                tmp=this_prate(:);
+                this_prate_inele = tmp(t(i_ele,:));
+                prate_interp = sum(this_prate_inele .* i_area_cor, 2);
+            end
+            
+            if ~(max(prate_interp(:)) < max_val && min(prate_interp(:)) > min_val) 
+              disp(['warning: value out of range']);
+              max(prate_interp(:)) 
+              min(prate_interp(:)) 
             end
             dlmwrite(fname_out,[time_stamp;max(0,prate_interp).*precip2flux(iSS)]','precision',10,'delimiter',' ','-append');
             time_stamp=time_stamp+dt;
@@ -121,14 +173,17 @@ for i=1:nf
             if this_sflux_time==start_time_run %diagnostic plot
                 figure;
                 subplot(1,3,3); 
-                scatter(lon_e(iSS),lat_e(iSS),5,max(0,prate_interp),'filled'); hold on; colormap jet;colorbar;title('vsource');
-            
-                prate_interp = griddata(double(lat),double(lon),double(prate(:,:,j)),double(lat_e),double(lon_e));
+                scatter(lon_e(iSS),lat_e(iSS),5,max(0,prate_interp),'filled'); hold on; colormap jet;colorbar;title('vsource, selected region');
+                
                 subplot(1,3,1); 
-                contour(lon,lat,prate(:,:,j)); hold on; colormap jet; colorbar; title('sflux');              
+                this_prate=prate(:,:,j);
+                F_interp.Values = double(this_prate(:));
+                prate_interp = F_interp(double(lat_e),double(lon_e));
+                contour(lon,lat,prate(:,:,j)); hold on; colormap jet; colorbar; title('sflux');  
+                
                 subplot(1,3,2); 
                 [prate_sorted,II]=sort(prate_interp.*precip2flux,'descend');
-                scatter(lon_e(II),lat_e(II),5,max(0,prate_interp(II)),'filled'); hold on; colormap jet;colorbar;title('vsource');
+                scatter(lon_e(II),lat_e(II),5,max(0,prate_interp(II)),'filled'); hold on; colormap jet;colorbar;title('vsource, whole domain');
                 clearvars prate_interp;
             end
         end
@@ -144,10 +199,9 @@ fprintf(fid,'\n');
 fprintf(fid,'%d\n',0); %number of sinks
 fclose(fid);
 
-total_nt=time_stamp/dt;
-msource=zeros(total_nt,length(iSS)*2+1);
-msource(:,1)=0:dt:(time_stamp-dt);
+msource=zeros(2,length(iSS)*2+1);
+msource(:,1)=[0 time_stamp*1.1];
 msource(:,2:length(iSS)+1)=-9999;
-dlmwrite([wdir 'msource.th.2'],msource,'precision',10,'delimiter',' ');
+dlmwrite([wdir 'msource.th.2'],msource,'precision',15,'delimiter',' ');
             
     
