@@ -12,7 +12,7 @@ git:
   depth: 1
 
 branches:
-  only: master
+  only: travis-ci
 
 cache:
   - brew: true
