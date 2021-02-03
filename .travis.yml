@@ -1,6 +1,6 @@
 # This travis configuration file is part of SCHISM
 #
-# @copyright (C)  2021 Helmholtz-Zentrum Geesthacht
+# @copyright (C) 2021 Helmholtz-Zentrum Geesthacht
 # @author Carsten Lemmen, Helmholtz-Zentrum Geesthacht
 #
 
@@ -43,24 +43,23 @@ os:
   - linux
   - osx
 
-#osx_image: xcode9.3beta
+osx_image: xcode12.2
 
 before_install:
-  # - brew update
-  # - brew install netcdf
-  # - brew install json-fortran
-  # - brew install doxygen
 
 notifications:
   email: true
 
 env:
   - global:
+    - SCHISM_DIR=${TRAVIS_BUILD_DIR}
+    - SCHISM_BUILD_DIR=${TRAVIS_BUILD_DIR}/../build
 
 install:
-  - cd $TRAVIS_BUILD_DIR
-  - cmake  ../src/
-  - make pschism 
+  - mkdir -p ${SCHISM_BUILD_DIR}
+  - cd ${SCHISM_BUILD_DIR}
+  - cmake ${TRAVIS_BUILD_DIR}/src
+  - make pschism
 
 before_script:
 
