@@ -406,6 +406,7 @@
 !...  Init reading t.h. files 
       if(nettype>0) then
         open(50,file=in_dir(1:len_in_dir)//'elev.th',status='old')
+        rewind(50)
         !Get dt 1st
         read(50,*)tmp !,ath(1:nettype,1,1,1)
         read(50,*)th_dt(1,1) !,ath(1:nettype,1,2,1)
@@ -422,6 +423,7 @@
 
       if(nfltype>0) then 
         open(51,file=in_dir(1:len_in_dir)//'flux.th',status='old')
+        rewind(51)
         read(51,*) tmp !,ath(1:nfltype,1,1,2)
         read(51,*) th_dt(1,2) !
         if(abs(tmp)>real(1.e-6,rkind).or.th_dt(1,2)<dt) call parallel_abort('INIT: check flux.th')
@@ -438,6 +440,7 @@
       do i=1,natrm
         if(ntrs(i)>0.and.ntrtype1(i)>0) then !type I
           do m=irange_tr(1,i),irange_tr(2,i) !1,ntracers
+            rewind(300+m)
             read(300+m,*)tmp !,ath(1:ntrtype1(i),m,1,5)
             read(300+m,*)th_dt(m,5) !
             if(abs(tmp)>real(1.e-6,rkind).or.th_dt(m,5)<dt) call parallel_abort('INIT: check ASCII tracer .th')
@@ -561,6 +564,7 @@
       if(if_source==1) then !ASCII
         if(nsources>0) then
           open(63,file=in_dir(1:len_in_dir)//'vsource.th',status='old') !values (>=0) in m^3/s
+          rewind(63)
           read(63,*)tmp,ath3(1:nsources,1,1,1)
           read(63,*)th_dt3(1),ath3(1:nsources,1,2,1)
           if(abs(tmp)>real(1.d-6,rkind).or.th_dt3(1)<dt) call parallel_abort('INIT: vsource.th start time wrong')
@@ -576,6 +580,7 @@
           !msource.th: values in concentration dimension (psu etc)
           !Use -9999 to injet ambient values
           open(65,file=in_dir(1:len_in_dir)//'msource.th',status='old')
+          rewind(65)
           read(65,*)tmp,ath3(1:nsources,1:ntracers,1,3)
           read(65,*)th_dt3(3),ath3(1:nsources,1:ntracers,2,3)
           if(abs(tmp)>real(1.d-6,rkind).or.th_dt3(3)<dt) call parallel_abort('INIT: msource.th start time wrong')
@@ -591,6 +596,7 @@
    
         if(nsinks>0) then
           open(64,file=in_dir(1:len_in_dir)//'vsink.th',status='old') !values (<=0) in m^3/s
+          rewind(64)
           read(64,*)tmp,ath3(1:nsinks,1,1,2)
           read(64,*)th_dt3(2),ath3(1:nsinks,1,2,2)
           if(abs(tmp)>real(1.e-6,rkind).or.th_dt3(2)<dt) call parallel_abort('INIT: vsink.th start time wrong')
@@ -1026,37 +1032,36 @@
 
 !         Interface (shoreline) sides
 !$OMP     workshare
-          icolor=0 !nodes on the interface sides
+!          icolor=0 !nodes on the interface sides (not needed)
           icolor2=0 !interface sides
 !$OMP     end workshare
 
 !$OMP     do
           do i=1,ns
             if(isdel(2,i)/=0) then; if(idry_e2(isdel(1,i))+idry_e2(isdel(2,i))==1) then
-!              icolor(isidenode(1:2,i))=1
               icolor2(i)=1
             endif; endif
           enddo !i
 !$OMP     end do
 
-!$OMP     do
-          loopinun: do i=1,np
-            do j=1,nne(i)
-              ie=indel(j,i)
-              id=iself(j,i)
-              do m=1,2 !2 neighboring sides
-                isd=elside(nxq(m+i34(ie)-3,id,i34(ie)),ie)
-                if(icolor2(isd)==1) then
-                  icolor(i)=1
-                  cycle loopinun
-                endif
-              enddo !m
-            enddo !j
-          end do loopinun !i
-!$OMP     end do
+!!$OMP     do
+!          loopinun: do i=1,np
+!            do j=1,nne(i)
+!              ie=indel(j,i)
+!              id=iself(j,i)
+!              do m=1,2 !2 neighboring sides
+!                isd=elside(nxq(m+i34(ie)-3,id,i34(ie)),ie)
+!                if(icolor2(isd)==1) then
+!                  icolor(i)=1
+!                  cycle loopinun
+!                endif
+!              enddo !m
+!            enddo !j
+!          end do loopinun !i
+!!$OMP     end do
 !$OMP end parallel
 
-          call exchange_p2di(icolor)
+!          call exchange_p2di(icolor)
           call exchange_s2di(icolor2)
           
 !         Aug. shoreline sides (must be internal sides)
@@ -1081,25 +1086,35 @@
             inew=0 !for initializing and counting su2 sv2
             do i=1,nsdf !aug.
               isd=isdf(i)
-              if(isdel(1,isd)<0.or.isdel(2,isd)<0) cycle
+!              if(isdel(1,isd)<0.or.isdel(2,isd)<0) cycle
               if(isdel(1,isd)==0.or.isdel(2,isd)==0) then
                 write(errmsg,*)'LEVELS1: bnd side (2):',isdel(:,isd),iplg(isidenode(1:2,isd))
                 call parallel_abort(errmsg)
               endif
-              if(idry_e2(isdel(1,isd))+idry_e2(isdel(2,isd))/=1) cycle
+!              if(idry_e2(isdel(1,isd))+idry_e2(isdel(2,isd))/=1) cycle
 
-              if(idry_e2(isdel(1,isd))==1) then
-                ie=isdel(1,isd)
-              else 
-                ie=isdel(2,isd)
-              endif
+              !Try to find a dry elem (to take care of some odd cases where
+              !nodeA is interface btw sub-domains)
+!              if(idry_e2(isdel(1,isd))==1) then
+!                ie=isdel(1,isd)
+!              else 
+!                ie=isdel(2,isd)
+!              endif
+              ie=0
+              do m=1,2
+                if(isdel(m,isd)>0) then; if(idry_e2(isdel(m,isd))==1) then
+                  ie=isdel(m,isd); exit
+                endif; endif
+              enddo !m
+              if(ie==0) cycle
+
               n1=isidenode(1,isd)
               n2=isidenode(2,isd)
               nodeA=elnode(1,ie)+elnode(2,ie)+elnode(3,ie)-n1-n2
 
               if(icolor(nodeA)==1) cycle !this node is done
 
-              icolor(nodeA)=1 !this node is done
+              icolor(nodeA)=1 !this node will be done
               if(nodeA>np) cycle
 !             nodeA is resident
 
@@ -1185,100 +1200,102 @@
               ltmp=ltmp.or.inew(i)/=0
               if(inew(i)/=0) then
 !                srwt_xchng(1)=.true.
-                su2(1:nvrt,i)=su2(1:nvrt,i)/inew(i)
-                sv2(1:nvrt,i)=sv2(1:nvrt,i)/inew(i)
+                su2(1:nvrt,i)=su2(1:nvrt,i)/dble(inew(i))
+                sv2(1:nvrt,i)=sv2(1:nvrt,i)/dble(inew(i))
               endif
             enddo !i
 !$OMP end parallel do 
             srwt_xchng(1)=ltmp
 
             istop=2
-            go to 991
+!            go to 991
           endif !srwt_xchng_gb; final extrapolation
 
-          istop=1 !stop iteration and go to extrapolation stage; initialize first
-          do i=1,nsdf !aug.
-            isd=isdf(i)
-            do j=1,2
-              nd=isidenode(j,isd)
-              if(eta2(nd)+dp(nd)<=h0) then
+          if(istop/=2) then
+!=========
+            istop=1 !stop iteration and go to extrapolation stage; initialize first
+            do i=1,nsdf !aug.
+              isd=isdf(i)
+              do j=1,2
+                nd=isidenode(j,isd)
+                if(eta2(nd)+dp(nd)<=h0) then
 !Debug
 !                write(12,*)'Make dry:',itr,iplg(nd)
 
-                istop=0
-                do l=1,nne(nd)
-                  ie=indel(l,nd)
-                  if(ie>0) idry_e2(ie)=1
-                enddo !l
+                  istop=0
+                  do l=1,nne(nd)
+                    ie=indel(l,nd)
+                    if(ie>0) idry_e2(ie)=1
+                  enddo !l
+                endif
+              enddo !j=1,2 nodes
+            enddo !i=1,nsdf
+            call exchange_e2di(idry_e2)
+
+!           Wetting
+            inew=0 !for initializing and counting su2 sv2
+            srwt_xchng(1)=.false. !flag for wetting occurring
+            do i=1,nsdf !aug. domain for updating vel. at interfacial sides (between 2 sub-domains)
+              isd=isdf(i) !must be internal side
+              if(isdel(1,isd)<0.or.isdel(2,isd)<0) cycle !neither element can have interfacial sides
+              if(isdel(1,isd)==0.or.isdel(2,isd)==0) then
+                write(errmsg,*)'LEVELS1: bnd side:',isdel(:,isd),iplg(isidenode(1:2,isd))
+                call parallel_abort(errmsg)
               endif
-            enddo !j=1,2 nodes
-          enddo !i=1,nsdf
-          call exchange_e2di(idry_e2)
+              if(idry_e2(isdel(1,isd))+idry_e2(isdel(2,isd))/=1) cycle
+!             2 end nodes have total depths > h0
 
-!         Wetting
-          inew=0 !for initializing and counting su2 sv2
-          srwt_xchng(1)=.false. !flag for wetting occurring
-          do i=1,nsdf !aug. domain for updating vel. at interfacial sides (between 2 sub-domains)
-            isd=isdf(i) !must be internal side
-            if(isdel(1,isd)<0.or.isdel(2,isd)<0) cycle !neither element can have interfacial sides
-            if(isdel(1,isd)==0.or.isdel(2,isd)==0) then
-              write(errmsg,*)'LEVELS1: bnd side:',isdel(:,isd),iplg(isidenode(1:2,isd))
-              call parallel_abort(errmsg)
-            endif
-            if(idry_e2(isdel(1,isd))+idry_e2(isdel(2,isd))/=1) cycle
-!           2 end nodes have total depths > h0
-
-            if(idry_e2(isdel(1,isd))==1) then
-              ie=isdel(1,isd) !>0
-            else
-              ie=isdel(2,isd) !>0
-            endif
-            n1=isidenode(1,isd)
-            n2=isidenode(2,isd)
-            nodeA=elnode(1,ie)+elnode(2,ie)+elnode(3,ie)-n1-n2   ! eli: is the 2,ie one right?
-            l0=lindex(nodeA,ie)
+              if(idry_e2(isdel(1,isd))==1) then
+                ie=isdel(1,isd) !>0
+              else
+                ie=isdel(2,isd) !>0
+              endif
+              n1=isidenode(1,isd)
+              n2=isidenode(2,isd)
+              nodeA=elnode(1,ie)+elnode(2,ie)+elnode(3,ie)-n1-n2   ! eli: is the 2,ie one right?
+              l0=lindex(nodeA,ie)
 !            if(l0==0.or.icolor(nodeA)==1.or.nodeA==n1.or.nodeA==n2) then
-            if(l0==0.or.nodeA==n1.or.nodeA==n2) then
-              write(errmsg,*)'Frontier node outside, or on the interface:', &
-     &l0,iplg(nodeA),iplg(n1),iplg(n2),itr,it,iths !icolor(nodeA)
+              if(l0==0.or.nodeA==n1.or.nodeA==n2) then
+                write(errmsg,*)'Frontier node outside, or on the interface:', &
+       &l0,iplg(nodeA),iplg(n1),iplg(n2),itr,it,iths !icolor(nodeA)
 !'
-              write(12,*)'LEVELS1: fatal error message'
-              do l=1,ns
-                if(icolor2(l)==1) then
-                  write(12,*)l,iplg(isidenode(1:2,l))
-                  write(12,*)l,ielg(isdel(1:2,l)),idry_e2(isdel(1:2,l)),idry_e(isdel(1:2,l))
-                endif
-              enddo !l
-              do l=1,nea
-                write(12,*)l,idry_e2(l),idry_e(l)
-              enddo !l
-              call parallel_abort(errmsg)
-            endif !end fatal
+                write(12,*)'LEVELS1: fatal error message'
+                do l=1,ns
+                  if(icolor2(l)==1) then
+                    write(12,*)l,iplg(isidenode(1:2,l))
+                    write(12,*)l,ielg(isdel(1:2,l)),idry_e2(isdel(1:2,l)),idry_e(isdel(1:2,l))
+                  endif
+                enddo !l
+                do l=1,nea
+                  write(12,*)l,idry_e2(l),idry_e(l)
+                enddo !l
+                call parallel_abort(errmsg)
+              endif !end fatal
 
-            if(eta2(nodeA)+dp(nodeA)>h0) then !all 3 nodes have depths > h0
-!             Check
-              do j=1,3
-                nd=elnode(j,ie)
-                if(eta2(nd)+dp(nd)<=h0) then
-                  write(errmsg,*)'Failed to wet element (13):',ielg(ie),iplg(nd),iplg(nodeA)
-                  call parallel_abort(errmsg)
-                endif
-              enddo !j
+              if(eta2(nodeA)+dp(nodeA)>h0) then !all 3 nodes have depths > h0
+!               Check
+                do j=1,3
+                  nd=elnode(j,ie)
+                  if(eta2(nd)+dp(nd)<=h0) then
+                    write(errmsg,*)'Failed to wet element (13):',ielg(ie),iplg(nd),iplg(nodeA)
+                    call parallel_abort(errmsg)
+                  endif
+                enddo !j
 
 !Debug
 !              write(12,*)'Make wet:',itr,iplg(nodeA),ielg(ie)
 
-              srwt_xchng(1)=.true.
-              istop=0
-              idry_e2(ie)=0
+                srwt_xchng(1)=.true.
+                istop=0
+                idry_e2(ie)=0
 
-              do j=1,2 !sides sharing nodeA
-                id1=elside(nx(l0,j),ie)
-                if(icolor2(id1)==0) then
+                do j=1,2 !sides sharing nodeA
+                  id1=elside(nx(l0,j),ie)
+                  if(icolor2(id1)==0) then
 
 !                  if(ics==1) then
-                  swild2(1,1:nvrt)=su2(1:nvrt,isd)
-                  swild2(2,1:nvrt)=sv2(1:nvrt,isd)
+                    swild2(1,1:nvrt)=su2(1:nvrt,isd)
+                    swild2(2,1:nvrt)=sv2(1:nvrt,isd)
 !                  else !ics=2
 !                    !Assuming plane rotation
 !                    dot11=dot_product(sframe(1:3,1,isd),sframe(1:3,1,id1))
@@ -1289,32 +1306,34 @@
 !                    swild2(2,1:nvrt)=su2(1:nvrt,isd)*dot12+sv2(1:nvrt,isd)*dot22
 !                  endif !ics
 
-                  if(inew(id1)==0) then
-                    !vel. only accurate in resident domain
-                    su2(1:nvrt,id1)=swild2(1,1:nvrt) !su2(1:nvrt,isd)
-                    sv2(1:nvrt,id1)=swild2(2,1:nvrt) !sv2(1:nvrt,isd)
-                    inew(id1)=1
-                  else
-                    su2(1:nvrt,id1)=su2(1:nvrt,id1)+swild2(1,1:nvrt)
-                    sv2(1:nvrt,id1)=sv2(1:nvrt,id1)+swild2(2,1:nvrt)
-                    inew(id1)=inew(id1)+1
-                  endif
-                endif !icolor2(id)==0
-              enddo !j=1,2
-            endif !eta2(nodeA)+dp(nodeA)>h0
-          enddo !i=1,nsdf; shoreline sides
+                    if(inew(id1)==0) then
+                      !vel. only accurate in resident domain
+                      su2(1:nvrt,id1)=swild2(1,1:nvrt) !su2(1:nvrt,isd)
+                      sv2(1:nvrt,id1)=swild2(2,1:nvrt) !sv2(1:nvrt,isd)
+                      inew(id1)=1
+                    else
+                      su2(1:nvrt,id1)=su2(1:nvrt,id1)+swild2(1,1:nvrt)
+                      sv2(1:nvrt,id1)=sv2(1:nvrt,id1)+swild2(2,1:nvrt)
+                      inew(id1)=inew(id1)+1
+                    endif
+                  endif !icolor2(id)==0
+                enddo !j=1,2
+              endif !eta2(nodeA)+dp(nodeA)>h0
+            enddo !i=1,nsdf; shoreline sides
 
 !         Compute average vel. for rewetted sides
 !$OMP parallel do default(shared) private(i)
-          do i=1,ns
-            if(inew(i)/=0) then
-              su2(1:nvrt,i)=su2(1:nvrt,i)/real(inew(i),rkind)
-              sv2(1:nvrt,i)=sv2(1:nvrt,i)/real(inew(i),rkind)
-            endif !inew(i)/=0
-          enddo !i=1,ns
+            do i=1,ns
+              if(inew(i)/=0) then
+                su2(1:nvrt,i)=su2(1:nvrt,i)/real(inew(i),rkind)
+                sv2(1:nvrt,i)=sv2(1:nvrt,i)/real(inew(i),rkind)
+              endif !inew(i)/=0
+            enddo !i=1,ns
 !$OMP end parallel do
 
-991       continue
+!991       continue
+!=========
+          endif !istop/=2
 
           call mpi_allreduce(srwt_xchng,srwt_xchng_gb,1,MPI_LOGICAL,MPI_LOR,comm,ierr)
           if(srwt_xchng_gb(1)) then
@@ -2620,7 +2639,7 @@
 #endif /*USE_TIMOR*/
      &                 )
       use schism_glbl, only: rkind,grav,rho0,tempmin,tempmax,saltmin,saltmax,errmsg, &
-     &ddensed,ieos_type,eos_a,eos_b,ieos_pres,itr_met,i_prtnftl_weno
+     &ddensed,ieos_type,eos_a,eos_b,ieos_pres,itr_met,i_prtnftl_weno,itransport_only
       use schism_msgp, only : parallel_abort
       implicit none
 
@@ -2650,7 +2669,7 @@
       if(tem<tempmin.or.tem>tempmax.or.sal<saltmin.or.sal>saltmax) then
 !        if(ifort12(6)==0) then
 !          ifort12(6)=1
-        if ((itr_met.ne.4) .or. (i_prtnftl_weno.eq.1)) then
+        if ((itr_met.ne.4.or.i_prtnftl_weno.eq.1).and.itransport_only==0) then
           write(12,*)'Invalid temp. or salinity for density:',tem,sal,indx,igb
         endif
 !        endif
@@ -3639,7 +3658,7 @@
 !     Given global coord. (may not be on surface of earth), find lat/lon in radian
 !===============================================================================
       subroutine compute_ll(xg,yg,zg,rlon,rlat)
-      use schism_glbl, only : rkind,pi,errmsg
+      use schism_glbl, only : rkind,pi,errmsg,rearth_pole,rearth_eq
       use schism_msgp, only : parallel_abort
       implicit none
       real(rkind),intent(in) :: xg,yg,zg
@@ -3653,7 +3672,11 @@
       endif
 
       rlon=atan2(yg,xg) !(-pi,pi]
-      rlat=asin(zg/rad)
+      if(abs(rearth_pole-rearth_eq)<1.d-2) then !for backward compatibility
+        rlat=asin(zg/rad)
+      else
+        rlat=asin(zg/rearth_pole)
+      endif
  
       end subroutine compute_ll
 

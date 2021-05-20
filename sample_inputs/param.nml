@@ -47,10 +47,10 @@
 
 !-----------------------------------------------------------------------
 ! Option to only solve tracer transport (and bypass most b-tropic solver)
-! Usage: turn the flag on and turn on your tracer modules and make sure 
+! Usage: turn the flag on ('1') and turn on your tracer modules and make sure 
 ! (1) your inputs are consistent with the original hydro-only run (with additional tracers
 ! of course); (2) hydro-only run results are in hydro_out/schout*.nc, which must
-! have 'hvel_side' (not normal hvel), 'elev', 'diffusivity'; (3) dt above is 
+! have 'hvel_side' (not normal hvel), 'elev', 'diffusivity', 'temp_elem', 'salt_elem'; (3) dt above is 
 ! multiple of _output_ step used in the original hydro-only run 
 ! (as found in in hydro_out/schout*.nc); e.g. dt = 1 hour. 
 ! Hotstart should work also, but you'd probably not use an aggressively large dt especially
@@ -60,11 +60,15 @@
 
 !-----------------------------------------------------------------------
 ! Option to add self-attrection loading tide (SAL) into tidal potential 
-! (usually for global model). If /=1, needs inputs: loadtide_[FREQ].gr3, 
+! (usually for large-scale model). 
+! If iloadtide=1, needs inputs: loadtide_[FREQ].gr3, 
 ! where [FREQ] are freq names (shared with tidal potential, in upper cases) 
 ! and the _two_ 'depths' inside are amplitude (m) and phases (degrees behind GMT), 
-! interpolated from global tide model (e.g. FES2014); also shares some 
-! parameters with tidal potential in bctides.in (cut-off depth, frequencies).
+! interpolated from global tide model (e.g. FES2014). In this option, SAL is 
+! lumped into tidal potential so it shares some parameters with tidal potential 
+! in bctides.in (cut-off depth, frequencies).
+! If iloadtide=2, use a simple scaling for gravity approach (in this option,
+! SAL is applied everywhere and does not share parameters with tidal potential).
 !-----------------------------------------------------------------------
   iloadtide = 0
 
@@ -141,12 +145,15 @@
 
 !-----------------------------------------------------------------------
 ! 2nd stabilization method via Shapiro filter. This should normally be used 
-! if indvel=ihorcon=0. To transition between eddying/non-eddying regimes, use
-! indvel=0, ihorcon/=0, and ishapiro=-1 (shapiro.gr3).
+! if indvel=0. To transition between eddying/non-eddying regimes, use
+! indvel=0, ihorcon/=0, and ishapiro=-1 (shapiro.gr3) or 2 (Smagorinsky-like filter)
 !-----------------------------------------------------------------------
-  ishapiro = 1 !on/off flag
-  shapiro0 = 0.5 !Shapiro filter strength, needed only if ishapiro=1; max is 0.5 
-  niter_shap = 1 !needed if ishapiro/=0 - # of iterations with Shapiro filter. Suggested: 1
+  ishapiro = 1 !options
+  niter_shap = 1 !needed if ishapiro/=0: # of iterations with Shapiro filter
+  !shapiro0: Shapiro filter strength, needed only if ishapiro=1 or 2 
+  !If ishapiro=1, shapiro0 is the filter strength (max is 0.5).
+  !If ishapiro=2, shapiro0 is the coefficient in tanh(). Experiences so far suggest 20
+  shapiro0 = 0.5 
 
 !-----------------------------------------------------------------------
 ! Implicitness factor (0.5<thetai<=1).
@@ -169,7 +176,7 @@
 ! force expression.
 !-----------------------------------------------------------------------
   icou_elfe_wwm = 0 
-  nstep_wwm = 1  !call WWM every this many time steps. If /=1, consider using quasi-steady mode in WWM
+  nstep_wwm = 1  !call WWM every this many time steps 
   iwbl = 0 !wave boundary layer formulation (used only if USE_WMM and 
            !icou_elfe_wwm/=0 and nchi=1. If icou_elfe_wwm=0, set iwbl=0): 
            !1-modified Grant-Madsen formulation; 2-Soulsby (1997)
@@ -271,14 +278,12 @@
 !           nchi=1: bottom roughness (in meters) specified in rough.gr3 (and in this case, negative
 !           or 0 depths in rough.gr3 indicate time-independent Cd, not roughness!).
 !           Cd is calculated using the log law, when dzb>=dzb_min; when dzb<dzb_min,
-!           Cd=Cdmax*exp[dzb_decay*(1-dzb/dzb_min)], where Cdmax=Cd(dzb=dzb_min),
-!           and dzb_decay (<=0) is a decay const specified below. We recommend dzb_decay=0
-!           and may remove this constant in the future.
+!           Cd=Cdmax, where Cdmax=Cd(dzb=dzb_min).
 !           If iwbl/=0, nchi must =1.
 !-----------------------------------------------------------------------
   nchi = 0 
   dzb_min = 0.5 !needed if nchi=1; min. bottom boundary layer thickness [m].
-  dzb_decay = 0. !needed if nchi=1; a decay const. [-]. should =0
+!  dzb_decay = 0. !needed if nchi=1; a decay const. [-]. should =0
   hmin_man = 1. !needed if nchi=-1: min. depth in Manning's formulation [m]
 
 !-----------------------------------------------------------------------
@@ -377,7 +382,7 @@
 ! Behavior when trajectory hits open bnd. If ibtrack_openbnd=0, slide with
 ! tangential vel; otherwise, stop and exit btrack 
 !-----------------------------------------------------------------------
-  ibtrack_openbnd = 1 
+!  ibtrack_openbnd = 1 !hardwired
 
 !-----------------------------------------------------------------------
 ! Wetting and drying. 
@@ -428,19 +433,18 @@
   kr_co = 1 !not used if inter_mom=0
 
 !-----------------------------------------------------------------------
-! Transport method. 
+! Tracer transport method. 
+! IMPORTANT: itr_met=1,2 (explicit TVD) options are kept mainly for comparison and should NOT 
+! be used normally (use '3' or '4' instead); also it does NOT support any other tracer modules like GEN etc.
+!
 ! If itr_met=1, explicit upwind method is used. If itr_met>=2, TVD or WENO method is used
 ! on an element/prism if the total depth (at all nodes of the elem.)>=h_tvd and the flag in
 ! tvd.prop = 1 for the elem (tvd.prop is required in this case); otherwise upwind is used for efficiency. 
-! IMPORTANT: itr_met=1,2 (explicit TVD) option is kept mainly for comparison and should NOT 
-! be used normally (use '3' or '4' instead); also it does NOT support any other tracer modules like GEN etc.
 ! itr_met=3 (horizontal TVD) or 4 (horizontal WENO): implicit TVD in the vertical dimension. 
 ! Also if itr_met==3 and h_tvd>=1.e5, some parts of the code are bypassed for efficiency
 ! Controls for WENO are not yet in place.
-! In short: if you use barotropic model and want to avoid preparing tvd.prop, set itr_met=1;
-! otherwise, use '3' or '4'.
 !-----------------------------------------------------------------------
-  itr_met = 3 !Default: 1
+  itr_met = 3 
   h_tvd = 5. !used only if itr_met>=2; cut-off depth (m) 
   !If itr_met=3 or 4, need the following 2 tolerances of convergence. The convergence
   !is achieved when sqrt[\sum_i(T_i^s+1-T_i^s)^2]<=eps1_tvd_imp*sqrt[\sum_i(T_i^s)^2]+eps2_tvd_imp
@@ -475,7 +479,6 @@
 ! variables are read in from wind.th. If nws=2, atmos. variables are
 ! read in from sflux_ files.
 ! If nws=4, ascii format is used for wind and atmos. pressure at each node (see source code).
-! If nws>0, 'iwindoff' can be used to scale wind speed (with windfactor.gr3).
 !
 ! Stress calculation:
 ! If nws=2, ihconsv=1 and iwind_form=0, the stress is calculated from heat exchange
@@ -489,7 +492,7 @@
   wtiminc = 150. !time step for atmos. forcing. Default: same as dt
   nrampwind = 1 !ramp-up option for atmos. forcing
   drampwind = 1. !needed if nrampwind/=0; ramp-up period in days
-  iwindoff = 0 !needed only if nws/=0; '1': needs windfactor.gr3
+!  iwindoff = 0 !needed only if nws/=0; '1': needs windfactor.gr3
   iwind_form = -1 !needed if nws/=0
   !If impose_net_flux/=0 and nws=2, read in net _surface_ heat flux as var 'dlwrf' 
   !(Downward Long Wave) in sflux_rad (solar radiation is still used separately),
@@ -586,7 +589,7 @@
 
 !-----------------------------------------------------------------------
 ! Flag for harmonic analysis for elevation. If used , need to turn on USE_HA
-! in Makefile, and input harm.in. Otherwise set it to 0. Hotstart is not working with HA
+! in Makefile, and input harm.in. Otherwise set it to 0. Hotstart ihot=2 is not working with HA
 ! Outputs are harme_* and use combine_outHA to combine.
 !-----------------------------------------------------------------------
   iharind = 0
@@ -1046,31 +1049,39 @@
   iof_icm(177) = 0 !veg production [gC/m^2/day] {ICM_PrmPrdtveg}
   iof_icm(178) = 0 !sav production [gC/m^2/day] {ICM_PrmPrdtsav}
 
-  iof_icm(179) = 0 !Zoo. #1 {ICM_1}
-  iof_icm(180) = 0 !Zoo. #2 {ICM_2}
-  iof_icm(181) = 0 !phyto #1 {ICM_3}
-  iof_icm(182) = 0 !phyto #2 {ICM_4}
-  iof_icm(183) = 0 !phyto #3 {ICM_5}
-  iof_icm(184) = 0 !RPOC {ICM_6}
-  iof_icm(185) = 0 !LPOC {ICM_7}
-  iof_icm(186) = 0 !DOC {ICM_8}
-  iof_icm(187) = 0 !RPON {ICM_9}
-  iof_icm(188) = 0 !LPON {ICM_10}
-  iof_icm(189) = 0 !DON {ICM_11}
-  iof_icm(190) = 0 !NH4 {ICM_12}
-  iof_icm(191) = 0 !NO3 {ICM_13}
-  iof_icm(192) = 0 !RPOP {ICM_14}
-  iof_icm(193) = 0 !LPOP {ICM_15}
-  iof_icm(194) = 0 !DOP {ICM_16}
-  iof_icm(195) = 0 !PO4t {ICM_17}
-  iof_icm(196) = 0 !Si- biogenic {ICM_18}
-  iof_icm(197) = 0 !available Si {ICM_19}
-  iof_icm(198) = 0 !COD: Chemical oxygen demand {ICM_20}
-  iof_icm(199) = 0 !DO {ICM_21}
-  iof_icm(200) = 0 !TIC {ICM_22} !following requires ICM_PH on
-  iof_icm(201) = 0 !ALK {ICM_23}
-  iof_icm(202) = 0 !CA {ICM_24}
-  iof_icm(203) = 0 !CACO3 {ICM_25}
+  iof_icm(179) = 0 !sav growth rate [/day] {ICM_plfsav}
+  iof_icm(180) = 0 !max sav growth rate [/day] {ICM_pmaxsav}
+  iof_icm(181) = 0 !sav light limitation [-] {ICM_fisav}
+  iof_icm(182) = 0 !sav N limitation [-] {ICM_fnsav}
+  iof_icm(183) = 0 !sav P limitation [-] {ICM_fpsav}
+
+  iof_icm(184) = 0 !light radiation at bottom of each layer [W/m/m] {ICM_rad}
+
+  iof_icm(185) = 0 !Zoo. #1 {ICM_1}
+  iof_icm(186) = 0 !Zoo. #2 {ICM_2}
+  iof_icm(187) = 0 !phyto #1 {ICM_3}
+  iof_icm(188) = 0 !phyto #2 {ICM_4}
+  iof_icm(189) = 0 !phyto #3 {ICM_5}
+  iof_icm(190) = 0 !RPOC {ICM_6}
+  iof_icm(191) = 0 !LPOC {ICM_7}
+  iof_icm(192) = 0 !DOC {ICM_8}
+  iof_icm(193) = 0 !RPON {ICM_9}
+  iof_icm(194) = 0 !LPON {ICM_10}
+  iof_icm(195) = 0 !DON {ICM_11}
+  iof_icm(196) = 0 !NH4 {ICM_12}
+  iof_icm(197) = 0 !NO3 {ICM_13}
+  iof_icm(198) = 0 !RPOP {ICM_14}
+  iof_icm(199) = 0 !LPOP {ICM_15}
+  iof_icm(200) = 0 !DOP {ICM_16}
+  iof_icm(201) = 0 !PO4t {ICM_17}
+  iof_icm(202) = 0 !Si- biogenic {ICM_18}
+  iof_icm(203) = 0 !available Si {ICM_19}
+  iof_icm(204) = 0 !COD: Chemical oxygen demand {ICM_20}
+  iof_icm(205) = 0 !DO {ICM_21}
+  iof_icm(206) = 0 !TIC {ICM_22} !following requires ICM_PH on
+  iof_icm(207) = 0 !ALK {ICM_23}
+  iof_icm(208) = 0 !CA {ICM_24}
+  iof_icm(209) = 0 !CACO3 {ICM_25}
            
 !-----------------------------------------------------------------------
 ! CoSINE outputs

@@ -152,7 +152,7 @@
                     &ubl1,ubl2,ubl3,ubl4,ubl5,ubl6,ubl7,ubl8,xn1, &
                     &xn2,yn1,yn2,xstal,ystal,ae,THAS,THAF,err_max,rr,suma, &
                     &te,sa,wx1,wx2,wy1,wy2,aux1,aux2,time,ttt, &
-                    &et,qq,tr,ft1,dep,wtratio,shapiro0,rmaxvel,sav_cd0
+                    &et,qq,tr,ft1,dep,wtratio,rmaxvel,sav_cd0
 
 
 #ifdef USE_FIB
@@ -170,9 +170,9 @@
       namelist /OPT/ gen_wsett,flag_fib,ics,rearth_pole,rearth_eq,indvel, &
      &imm,ibdef,ihot,ihydraulics,izonal5,slam0,sfea0,iupwind_mom,ihorcon, &
      &hvis_coef0,ishapiro,shapiro0,niter_shap,ihdif,thetai,nrampbc,drampbc, &
-     &nramp,dramp,nadv,dtb_min,dtb_max,h0,nchi,dzb_min,dzb_decay, &
+     &nramp,dramp,nadv,dtb_min,dtb_max,h0,nchi,dzb_min, &
      &hmin_man,ncor,rlatitude,coricoef,nws,impose_net_flux,wtiminc,iwind_form,nrampwind, &
-     &drampwind,iwindoff,ihconsv,isconsv,itur,dfv0,dfh0,h1_pp,h2_pp,vdmax_pp1, &
+     &drampwind,ihconsv,isconsv,itur,dfv0,dfh0,h1_pp,h2_pp,vdmax_pp1, &
      &vdmax_pp2,vdmin_pp1,vdmin_pp2,tdmin_pp1,tdmin_pp2,mid,stab,xlsc0, &
      &ibcc_mean,flag_ic,start_year,start_month,start_day,start_hour,utc_start, &
      &itr_met,h_tvd,eps1_tvd_imp,eps2_tvd_imp,ip_weno, &
@@ -185,7 +185,7 @@
      &fwvor_advxy_stokes,fwvor_advz_stokes,fwvor_gradpress,fwvor_breaking,wafo_obcramp, &
      &iwbl,cur_wwm,if_source,nramp_ss,dramp_ss,ieos_type,ieos_pres,eos_a,eos_b,slr_rate, &
      &rho0,shw,isav,nstep_ice,iunder_deep,h1_bcc,h2_bcc,hw_depth,hw_ratio, &
-     &ibtrack_openbnd,level_age,vclose_surf_frac,iadjust_mass_consv0,ipre2, &
+     &level_age,vclose_surf_frac,iadjust_mass_consv0,ipre2, &
      &ielm_transport,max_subcyc,i_hmin_airsea_ex,hmin_airsea_ex,itransport_only,meth_sink, &
      &iloadtide
 
@@ -279,8 +279,6 @@
       if(ibtp/=0.and.ibtp/=1) call parallel_abort('Unknown ibtp')
       if(ibc==0) then
         if(myrank==0) write(16,*)'You are using baroclinic model'
-!        call get_param('param.in','nrampbc',1,nrampbc,tmp,stringvalue)
-!        if(nrampbc/=0) call get_param('param.in','drampbc',2,itmp,drampbc,stringvalue)
       else !ibc=1
         if(ibtp==0) then
           if(myrank==0) write(16,*)'Barotropic model without ST calculation'
@@ -437,15 +435,15 @@
       gen_wsett=real(0.d0,rkind); flag_fib=1; ics=1; rearth_pole=6378206.4_rkind; rearth_eq=6378206.4_rkind; 
       imm=0; ibdef=10; ihot=0; ihydraulics=0; izonal5=0; slam0=-124._rkind; sfea0=45._rkind; 
       ihdif=0; thetai=0.6_rkind; nrampbc=0; drampbc=1._rkind;  
-      nramp=1; dramp=1._rkind; nadv=1; dtb_min=10._rkind; dtb_max=30._rkind; h0=0.01_rkind; nchi=0; dzb_min=0.5_rkind; dzb_decay=0._rkind;  
+      nramp=1; dramp=1._rkind; nadv=1; dtb_min=10._rkind; dtb_max=30._rkind; h0=0.01_rkind; nchi=0; dzb_min=0.5_rkind 
       hmin_man=1._rkind; ncor=0; rlatitude=46._rkind; coricoef=0._rkind; 
       nws=0; impose_net_flux=0; wtiminc=dt; iwind_form=-1; nrampwind=1; 
-      drampwind=1; iwindoff=0; ihconsv=0; isconsv=0; i_hmin_airsea_ex=2; itur=0; dfv0=0.01_rkind; dfh0=real(1.d-4,rkind); 
+      drampwind=1; ihconsv=0; isconsv=0; i_hmin_airsea_ex=2; itur=0; dfv0=0.01_rkind; dfh0=real(1.d-4,rkind); 
       h1_pp=20._rkind; h2_pp=50._rkind; vdmax_pp1=0.01_rkind; vdmax_pp2=0.01_rkind
       vdmin_pp1=real(1.d-5,rkind); vdmin_pp2=vdmin_pp1; tdmin_pp1=vdmin_pp1; tdmin_pp2=vdmin_pp1
       mid='KL'; stab='KC'; xlsc0=0.1_rkind;  
       ibcc_mean=0; flag_ic(:)=1; start_year=2000; start_month=1; start_day=1; start_hour=0._rkind; utc_start=8._rkind;  
-      itr_met=1; h_tvd=5._rkind; eps1_tvd_imp=1.d-4; eps2_tvd_imp=1.d-14; ip_weno=2;  
+      itr_met=3; h_tvd=5._rkind; eps1_tvd_imp=1.d-4; eps2_tvd_imp=1.d-14; ip_weno=2;  
       courant_weno=0.5_rkind; ntd_weno=1; nquad=2; epsilon1=1.d-3; epsilon2=1.d-10; epsilon3=1.d-25; 
       ielad_weno=0; small_elad=1.d-4; i_prtnftl_weno=0;
       inu_tr(:)=0; step_nu_tr=86400._rkind; vnh1=400._rkind; vnh2=500._rkind; vnf1=0._rkind; vnf2=0._rkind;
@@ -459,7 +457,7 @@
       fwvor_advxy_stokes=1; fwvor_advz_stokes=1; fwvor_gradpress=1; fwvor_breaking=1; wafo_obcramp=0;
       iwbl=0; cur_wwm=0; if_source=0; nramp_ss=1; dramp_ss=2._rkind; ieos_type=0; ieos_pres=0; eos_a=-0.1_rkind; eos_b=1001._rkind;
       slr_rate=120._rkind; rho0=1000._rkind; shw=4184._rkind; isav=0; nstep_ice=1; h1_bcc=50._rkind; h2_bcc=100._rkind
-      hw_depth=1.d6; hw_ratio=0.5d0; iunder_deep=0; ibtrack_openbnd=1; level_age=-999;
+      hw_depth=1.d6; hw_ratio=0.5d0; iunder_deep=0; level_age=-999;
       !vclose_surf_frac \in [0,1]: correction factor for vertical vel & flux. 1: no correction
       vclose_surf_frac=1.0
       iadjust_mass_consv0=0 !Enforce mass conservation for a tracer 
@@ -573,26 +571,31 @@
 
 !...  Shapiro filter 
 !      call get_param('param.in','ishapiro',1,ishapiro,tmp,stringvalue)
-      if(iabs(ishapiro)>1) then
+      if(ishapiro<-1.or.ishapiro>2) then
         write(errmsg,*)'Illegal ishapiro:',ishapiro
         call parallel_abort(errmsg)
       endif
 
       if(ishapiro==1) then
-!        call get_param('param.in','shapiro',2,itmp,shapiro0,stringvalue)   
         if(shapiro0<0._rkind.or.shapiro0>0.5_rkind) then
           write(errmsg,*)'Illegal shapiro:',shapiro0
           call parallel_abort(errmsg)
         endif
       endif !ishapiro==1
 
+      if(ishapiro==2) then
+        if(shapiro0<0._rkind) then
+          write(errmsg,*)'Illegal shapiro(2):',shapiro0
+          call parallel_abort(errmsg)
+        endif
+      endif !ishapiro
+
       if(ishapiro/=0) then
-!        call get_param('param.in','niter_shap',1,niter_shap,tmp,stringvalue)
         if(niter_shap<0) then
           write(errmsg,*)'Illegal niter_shap:',niter_shap
           call parallel_abort(errmsg)
         endif
-      endif !ishapiro==1
+      endif !ishapiro
 
 !...  Horizontal diffusivity option; only works for upwind/TVD
 !     ihdif=0 means all hdif=0 and no hdif.gr3 is needed
@@ -663,9 +666,7 @@
       
       if(nchi==1) then
 !       dzb_min: min. bottom boundary layer thickness [m]
-!        call get_param('param.in','dzb_min',2,itmp,dzb_min,stringvalue)
-!        call get_param('param.in','dzb_decay',2,itmp,dzb_decay,stringvalue)
-        if(dzb_min<=0._rkind.or.dzb_decay>0._rkind) call parallel_abort('INIT: dzb_min<=0 or dzb_decay>0')
+        if(dzb_min<=0._rkind) call parallel_abort('INIT: dzb_min<=0') 
       endif
       if(nchi==-1) then
 !       Min depth used in Manning formulation
@@ -723,7 +724,6 @@
 !      if(nws>0) then
 !        call get_param('param.in','nrampwind',1,nrampwind,tmp,stringvalue)
 !        call get_param('param.in','drampwind',2,itmp,drampwind,stringvalue)
-!        call get_param('param.in','iwindoff',1,iwindoff,tmp,stringvalue)
 !      endif !nws
 
 !     Heat and salt conservation flags
@@ -827,36 +827,23 @@
      
 !...  Transport method for all tracers including T,S
 !     1: upwind; 2: TVD (explicit); 3: TVD (implicit vertical); 4: WENO (implicit vertical)
-!      call get_param('param.in','itr_met',1,itr_met,tmp,stringvalue)
       if(itr_met<1.or.itr_met>4) then
         write(errmsg,*)'Unknown tracer method',itr_met
         call parallel_abort(errmsg)
       endif
-!      if(itr_met>=2) then !TVD
-!        call get_param('param.in','h_tvd',2,itmp,h_tvd,stringvalue)
-!      endif
    
-      !For implicit transport, read in tolerances for convergence
-!      if(itr_met==3.or.itr_met==4) then
-!        call get_param('param.in','eps1_tvd_imp',2,itmp,eps1_tvd_imp,stringvalue)
-!        call get_param('param.in','eps2_tvd_imp',2,itmp,eps2_tvd_imp,stringvalue)
-!      endif
-
       !weno>
       if(itr_met==4) then !WENO
-!        call get_param('param.in','ip_weno',1,ip_weno,tmp,stringvalue)
         if(ip_weno<0.or.ip_weno>2) then
           write(errmsg,*)'Illegal ip_weno:',ip_weno
           call parallel_abort(errmsg)
         endif
 
-!        call get_param('param.in','courant_weno',2,itmp,courant_weno,stringvalue)
         if(courant_weno<=0._rkind) then
           write(errmsg,*)'Illegal courant_weno:',courant_weno
           call parallel_abort(errmsg)
         endif
 
-!        call get_param('param.in','ntd_weno',1,ntd_weno,tmp,stringvalue)
         if(ntd_weno.ne.1 .and. ntd_weno.ne.3) then
           write(errmsg,*)'Illegal ntd_weno:',ntd_weno
           call parallel_abort(errmsg)
@@ -1431,9 +1418,7 @@
 !     Volume and mass sources/sinks option (-1:nc; 1:ASCII)
       if(iabs(if_source)>1) call parallel_abort('Wrong if_source')
 
-      if(if_source/=0) then
-        if(dramp_ss<=0) call parallel_abort('INIT: wrong dramp_ss')
-      endif
+      if(if_source/=0.and.nramp_ss/=0.and.dramp_ss<=0) call parallel_abort('INIT: wrong dramp_ss')
 
 !'    Eq. of State type
 !     0: UNESCO 1980 (nonlinear); 1: linear function of T ONLY,
@@ -1676,7 +1661,7 @@
      &kbp00(npa),kbp_e(np),idry(npa),hmod(npa),znl(nvrt,npa), &
      &kbs(nsa),idry_s(nsa),isidenei2(4,ns),zs(nvrt,nsa), &
      &delj(ns),ibnd_ext_int(npa),pframe(3,3,npa),sigma_lcl(nvrt,npa),shape_c2(4,2,nea), &
-     &snx(nsa),sny(nsa),stat=istat)
+     &snx(nsa),sny(nsa),xs_el(4,nea),ys_el(4,nea),stat=istat)
       if(istat/=0) call parallel_abort('INIT: grid geometry arrays allocation failure')
 !'
 
@@ -1712,7 +1697,7 @@
 !     All other arrays
 !      allocate(sdbt(2+ntracers,nvrt,nsa), & !webt(nvrt,nea), bubt(2,nea), & 
        allocate(windx1(npa),windy1(npa),windx2(npa),windy2(npa),windx(npa),windy(npa), &
-         &  tau(2,npa),tau_bot_node(3,npa),iadv(npa),windfactor(npa),pr1(npa),airt1(npa),shum1(npa), &
+         &  tau(2,npa),tau_bot_node(3,npa),iadv(npa),pr1(npa),airt1(npa),shum1(npa), &
          &  pr2(npa),airt2(npa),shum2(npa),pr(npa),sflux(npa),srad(npa),tauxz(npa),tauyz(npa), &
          &  fluxsu(npa),fluxlu(npa),hradu(npa),hradd(npa),cori(nsa),Cd(nsa), &
          &  Cdp(npa),rmanning(npa),rough_p(npa),dfv(nvrt,npa),elev_nudge(npa),uv_nudge(npa), &
@@ -2087,6 +2072,16 @@
 !      endif !ics
 
 !...  Finish off some remaining geometric calcualtions
+!     Sidecenter coord in the elem frame
+      do i=1,nea
+        do j=1,i34(i)
+          j1=nxq(1,j,i34(i))
+          j2=nxq(2,j,i34(i))
+          xs_el(j,i)=0.5d0*(xel(j1,i)+xel(j2,i))
+          ys_el(j,i)=0.5d0*(yel(j1,i)+yel(j2,i))
+        enddo !j
+      enddo !i
+
 !      !weno>
       if (itr_met==4) then !WENO
         call set_isbe !identify boundary elements
@@ -2171,7 +2166,10 @@
           pframe(3,1,i)=0.d0
           pframe(1,2,i)=-cos(xlon(i))*sin(ylat(i)) !meri. dir.
           pframe(2,2,i)=-sin(xlon(i))*sin(ylat(i))
-          pframe(3,2,i)=cos(ylat(i))
+          pframe(3,2,i)=rearth_pole/rearth_eq*cos(ylat(i))
+          ar1=sqrt(pframe(1,2,i)**2.d0+pframe(2,2,i)**2.d0+pframe(3,2,i)**2.d0)
+          if(ar1==0.d0) call parallel_abort('INIT: 0 y-axis')
+          pframe(1:3,2,i)=pframe(1:3,2,i)/ar1
           call cross_product(pframe(1,1,i),pframe(2,1,i),pframe(3,1,i), &
                             &pframe(1,2,i),pframe(2,2,i),pframe(3,2,i), &
                             &pframe(1,3,i),pframe(2,3,i),pframe(3,3,i))
@@ -2470,10 +2468,10 @@
         if(iorder==0) then
           allocate(tp_name(ntip),tamp(ntip),tnf(ntip),tfreq(ntip),jspc(ntip),tear(ntip),stat=istat)
           if(istat/=0) call parallel_abort('INIT: allocation failure for tamp etc')
-          if(iloadtide/=0) then !loading tide (SAL)
+          if(iloadtide==1) then !loading tide (SAL) interpolated from another model
             allocate(rloadtide(2,ntip,npa),stat=istat)
             if(istat/=0) call parallel_abort('INIT: alloc failure for SAL')
-          endif !iloadtide/
+          endif !iloadtide
         endif !iorder
 !'
         open(32,file=in_dir(1:len_in_dir)//'hgrid.ll',status='old')
@@ -2504,7 +2502,7 @@
           tear(i)=tear(i)*pi/180.d0
         enddo !i
 
-        if(iloadtide/=0) then !loading tide
+        if(iloadtide==1) then !loading tide
           do i=1,ntip
             char6=adjustl(tp_name(i))
             itmp=len_trim(char6)
@@ -3018,9 +3016,9 @@
       ntime=rnday*86400.d0/dt+0.5d0
       nrec=min(ntime,ihfskip)/nspool
 
-!...  Compute neighborhood for internal sides for Shapiro filter
-!...  isidenei2(4,ns): 4 neighboring sides of a _resident_ side
-!...  Info for resident sides only!
+!...  Compute neighborhood for _internal_ sides for Shapiro filter
+!...  isidenei2(4,ns): 4 neighboring sides of a _resident internal_ side
+!...  Info for resident internal sides only!
 !$OMP parallel do default(shared) private(i,j,ie,l0,nwild)
       do i=1,ns !resident sides only
         if(isdel(2,i)==0) cycle 
@@ -3071,7 +3069,7 @@
       slam0=slam0*pi/180.d0
       sfea0=sfea0*pi/180.d0
 
-!...  Read in shaprio.gr3
+!...  Set shapiro(:). For ishapiro=2, this will be done in _step
       if(ishapiro==1) then
         shapiro(:)=shapiro0
       else if(ishapiro==-1) then
@@ -3202,6 +3200,10 @@
      &call parallel_abort('Check rough.gr3')
         do i=1,np_global
           read(32,*)j,xtmp,ytmp,tmp
+          if(tmp<0.d0) then
+            write(errmsg,*)'INIT: negative rough at node ',i,tmp
+            call parallel_abort(errmsg)
+          endif
           if(ipgl(i)%rank==myrank) rough_p(ipgl(i)%id)=tmp
         enddo !i
         close(32)
@@ -3273,25 +3275,25 @@
 #endif
       endif
 
-      windfactor=1 !intialize for default
-      if(nws>0) then
-        if(iwindoff/=0) then
-          open(32,file=in_dir(1:len_in_dir)//'windfactor.gr3',status='old')
-          read(32,*)
-          read(32,*) itmp1,itmp2
-          if(itmp1/=ne_global.or.itmp2/=np_global) &
-     &call parallel_abort('Check windfactor.gr3')
-          do i=1,np_global
-            read(32,*)j,xtmp,ytmp,tmp
-            if(tmp<0.d0) then
-              write(errmsg,*)'Wind scaling factor must be positive:',i,tmp
-              call parallel_abort(errmsg)
-            endif
-            if(ipgl(i)%rank==myrank) windfactor(ipgl(i)%id)=tmp
-          enddo !i
-          close(32)
-        endif
-      endif !nws>0
+!      windfactor=1 !intialize for default
+!      if(nws>0) then
+!        if(iwindoff/=0) then
+!          open(32,file=in_dir(1:len_in_dir)//'windfactor.gr3',status='old')
+!          read(32,*)
+!          read(32,*) itmp1,itmp2
+!          if(itmp1/=ne_global.or.itmp2/=np_global) &
+!     &call parallel_abort('Check windfactor.gr3')
+!          do i=1,np_global
+!            read(32,*)j,xtmp,ytmp,tmp
+!            if(tmp<0.d0) then
+!              write(errmsg,*)'Wind scaling factor must be positive:',i,tmp
+!              call parallel_abort(errmsg)
+!            endif
+!            if(ipgl(i)%rank==myrank) windfactor(ipgl(i)%id)=tmp
+!          enddo !i
+!          close(32)
+!        endif
+!      endif !nws>0
 
 !     Alloc. the large array for nws=4-6 option (may consider changing to unformatted binary read)
 !      if(nws==4) then
@@ -3745,7 +3747,7 @@
 !     between T,S and all tracers. Also if h_tvd>=1.e5 and itr_met>=3, then upwind is used for all tracers 
 !     and some parts of the code are bypassed for efficiency
       itvd_e=0 !init. for upwind
-      if(itr_met>=2) then
+      if(itr_met>=2.and.(ibc==0.or.ibtp==1)) then
         open(32,file=in_dir(1:len_in_dir)//'tvd.prop',status='old')
         do i=1,ne_global
           read(32,*)j,tmp
@@ -4524,9 +4526,12 @@
 !          shum1=0; shum2=0
 !        endif
 !      endif !nws>=2
+!------------------------------------------------------------------
+      endif !ihot=0
+
+!...  Finish off init. for both cold and hotstart
 
 #ifdef USE_HA
-!...
 !....INITIALIZE HARMONIC ANALYSIS MATRICES, MEAN AND SQUARE VECTORS
 !... Adapted from ADCIRC
       IF (iharind.EQ.1) THEN
@@ -4552,11 +4557,7 @@
         ENDIF
       ENDIF
 #endif /*USE_HA*/
-
-!------------------------------------------------------------------
-      endif !ihot=0
      
-!...  Finish off init. for both cold and hotstart
 !...  Init. tracer models
 !     This part needs T,S i.c. 
       tr_nd(3:ntracers,:,:)=0.d0
@@ -5084,16 +5085,20 @@
       write(10,*)np,ne
       if(ics==1) then
         do m=1,np
-          write(10,*)real(xnd(m)),real(ynd(m)),real(dp00(m)),kbp00(m)
+          write(10,*)xnd(m),ynd(m),real(dp00(m)),kbp00(m)
         enddo !m
       else !lat/lon
         do m=1,np
-          write(10,*)real(xlon(m)/pi*180.d0),real(ylat(m)/pi*180.d0),real(dp00(m)),kbp00(m)
+          write(10,*)xlon(m)/pi*180.d0,ylat(m)/pi*180.d0,real(dp00(m)),kbp00(m)
         enddo !m
       endif !ics
       do m=1,ne
         write(10,*)i34(m),(elnode(mm,m),mm=1,i34(m))
       enddo !m
+
+      do i=1,ns
+        write(10,*)i,isidenode(1:2,i)
+      enddo !i
 
       close(10)
       
@@ -5843,7 +5848,7 @@
 #endif /*USE_ICE*/
 
 #ifdef USE_HA
-        call parallel_abort('init: hot option for HA diabled')
+        if(ihot==2) call parallel_abort('init: hot option for HA diabled')
 #endif /*USE_HA*/
 
         deallocate(buf3)

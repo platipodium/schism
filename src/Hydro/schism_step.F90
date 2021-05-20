@@ -71,7 +71,8 @@
                          &tlfNH4sav,tlfPO4sav,trtpocsav,trtponsav,trtpopsav,trtdosav, &
                          &tlfNH4veg,tlfPO4veg,trtpocveg,trtponveg,trtpopveg,trtdoveg, &
                          &plfveg,pmaxveg,fiveg,fnveg,fpveg,fsveg,ffveg,rdephcanveg, &
-                         &PrmPrdtveg,PrmPrdtsav
+                         &plfsav,pmaxsav,fisav,fnsav,fpsav, &
+                         &PrmPrdtveg,PrmPrdtsav,rad_el
       USE icm_sed_mod, only: CNH4,CNO3,CPIP,CPOS,CCH4,CSO4,CH2S,CPON,CPOP,CPOC, &
                          &sed_BENDO,CTEMP,BBM,PO4T2TM1S,NH4T2TM1S,NO3T2TM1S, &
                          &HST2TM1S,CH4T2TM1S,CH41TM1S,SO4T2TM1S,SIT2TM1S,BENSTR1S,CPOP,CPON,CPOC,&
@@ -138,7 +139,7 @@
                  &ibnd,jfr,ncyc,iter,nlev,klev,kin,nqdim,limit,jmin, &
                  &ipsgb,iadvf,ifl_bnd,nnel,jlev,ndelt_min,ndelt_max,ii,id, &
                  &id2,id3,ip,ndelt,ibot_fl,ibelow,indx,nj,ind,ind2,lim,in1, &
-                 &in2,irank_s,itmp,itmp1,itmp2,node1,node2,ndim,mk,nd_lam, &
+                 &in2,in3,irank_s,itmp,itmp1,itmp2,node1,node2,ndim,mk,nd_lam, &
                  &iee,idel,irow,icol,ieq,ij,kbb,lwrite,lit,ihot_len,IHOTSTP, &
                  &itmpf,ibt,mmk,ndo,n,ind_tr,n_columns,ncid_hot,node_dim,elem_dim, &
                  &side_dim,nvrt_dim,ntracers_dim,three_dim,two_dim,one_dim, &
@@ -183,11 +184,11 @@
                      &tot_salt_gb,dav_mag,tvol,tmass,tpe,tkne,enerf,ener_ob, &
                      &av_dep,vel_m1,vel_m2,xtmp,ytmp,ftmp,tvol12,fluxbnd, &
                      &fluxchan,fluxchan1,fluxchan2,tot_s,flux_s,ah,ubm,ramp_ss,Cdmax, &
-                     &wmag_e,wmag_factor, & !wmag_e and wmag_facotr addedy by wangzg
+                     &wmag_e, & !wmag_e and wmag_facotr addedy by wangzg
                      &bthick_ori,big_ubstar,big_vbstar,zsurf,tot_bedmass,w1,w2,slr_elev, &
                      &i34inv,av_cff1,av_cff2,av_cff3,av_cff2_chi,av_cff3_chi, &
                      &sav_cfk,sav_cfpsi,sav_h_sd,sav_alpha_sd,sav_nv_sd,sav_c,beta_bar, &
-                     &bigfa1,bigfa2,vnf
+                     &bigfa1,bigfa2,vnf,grav2
 !Tsinghua group: 0821...
       real(rkind) :: dtrdz,apTpxy_up,apTpxy_do,epsffs,epsfbot !8022 +epsffs,epsfbot
 !0821...
@@ -244,7 +245,7 @@
       real(rkind),allocatable :: swild96(:,:,:),swild97(:,:,:) !used in ELAD (deallocate immediately afterwards)
       real(rkind),allocatable :: swild95(:,:,:) !for analysis module
       real(rkind),allocatable :: swild13(:) 
-      real(4),allocatable :: swild11(:),swild12(:,:) !reading schout*
+      real(4),allocatable :: swild11(:),swild12(:,:),swild14(:,:,:),ts_offline(:,:,:) !reading schout*
       real(rkind),allocatable :: hp_int(:,:,:),buf1(:,:),buf2(:,:),buf3(:),msource(:,:)
       real(rkind),allocatable :: fluxes_tr(:,:),fluxes_tr_gb(:,:) !fluxes output between regions
       logical :: ltmp,ltmp1(1),ltmp2(1)
@@ -283,6 +284,12 @@
       tau_bottom_nodes(:)=0.0d0
 #endif
 
+!     SAL option: scale gravity
+      if(iloadtide==2) then
+        grav2=grav*0.9d0
+      else
+        grav2=grav
+      endif
 
 !     Alloc
       allocate(hp_int(nvrt,nea,2),uth(nvrt,nsa),vth(nvrt,nsa),d2uv(2,nvrt,nsa), &
@@ -341,6 +348,12 @@
         if(istat/=0) call parallel_abort('STEP: fluxes_tr alloc')
       endif
 !     End alloc.
+
+!     Offline transport
+      if(itransport_only/=0) then
+        allocate(ts_offline(2,nvrt,nea),stat=istat)
+        if(istat/=0) call parallel_abort('MAIN: failed to alloc. (73)')
+      endif
 
 !      do it=iths+1,ntime
 
@@ -420,9 +433,9 @@
           arg=tfreq(j)*time-real(ncyc,rkind)*2.d0*pi+jspc(j)*xlon(i)+tear(j)
           etp(i)=etp(i)+0.69d0*ramp*tamp(j)*tnf(j)*fun_lat(jspc(j),i)*cos(arg)
 
-          if(iloadtide/=0) then !loading tide
+          if(iloadtide==1) then !loading tide
             etp(i)=etp(i)+rloadtide(1,j,i)*cos(tfreq(j)*time-rloadtide(2,j,i))
-          endif !iloadtide/
+          endif !iloadtide
         enddo !j
       enddo !i
 !$OMP end do
@@ -585,21 +598,21 @@
       endif !nws>=2
 
 !...  Re-scale wind
-      if(nws>0) then; if(iwindoff/=0) then
-        do i=1,npa
-          windx(i)=windx(i)*windfactor(i)
-          windy(i)=windy(i)*windfactor(i)
-        enddo !i
-      endif; endif
+!      if(nws>0) then; if(iwindoff/=0) then
+!        do i=1,npa
+!          windx(i)=windx(i)*windfactor(i)
+!          windy(i)=windy(i)*windfactor(i)
+!        enddo !i
+!      endif; endif
 
 #ifdef USE_ICM
 ! calculating WMS used for reareation,added by wangzg
       if(irea==1) then
-!$OMP parallel do default(shared) private(i,wmag_e,wmag_factor)
+!$OMP parallel do default(shared) private(i,wmag_e)
         do i=1,nea
           if(idry_e(i)==1) cycle
           wmag_e=sum(sqrt(windx(elnode(1:i34(i),i))**2.d0+windy(elnode(1:i34(i),i))**2.d0))/real(i34(i),rkind)
-          wmag_factor=sum(windfactor(elnode(1:i34(i),i)))/real(i34(i),rkind)
+!          wmag_factor=sum(windfactor(elnode(1:i34(i),i)))/real(i34(i),rkind)
           WMS(i)=wmag_e !*wmag_factor !no windfactor for DO reareation
         enddo !i
 !$OMP end parallel do
@@ -759,8 +772,8 @@
             tau(1,i)=0.d0
             tau(2,i)=0.d0
           else !rescale as well
-            tau(1,i)=-tauxz(i)/rho0*rampwind*windfactor(i)**2.d0 !sign and scale difference between stresses tauxz and tau
-            tau(2,i)=-tauyz(i)/rho0*rampwind*windfactor(i)**2.d0
+            tau(1,i)=-tauxz(i)/rho0*rampwind !*windfactor(i)**2.d0 !sign and scale difference between stresses tauxz and tau
+            tau(2,i)=-tauyz(i)/rho0*rampwind !*windfactor(i)**2.d0
           endif
         else !if(nws==1.or.nws>=4.or.nws>=2.and.ihconsv==0.or.iwind_form==-1) then
           wmag=sqrt(windx(i)**2.d0+windy(i)**2.d0)
@@ -1728,7 +1741,7 @@
 !new28: bypass solver for transport only option
       if(itransport_only/=0) then
 !=================================================================================
-      !Read in schout (saved hydro outputs), and update new soln: eta2, s[uv]2, dfh.
+      !Read in schout (saved hydro outputs), and update new soln: eta2, s[uv]2, dfh, tr_el(1:2,:,:).
       !Other vars: zcor and dry flags are computed either from schism_init or from levels*() after
       !transport solver; similarly for tr_nd*
 
@@ -1798,7 +1811,6 @@
         !write(16,*)'done reading elev...'
         j=nf90_inq_varid(ncid_schout, "diffusivity",mm)
         if(j/=NF90_NOERR) call parallel_abort('STEP: nc dfh')
-!      do k=1,nvrt
         !j=nf90_get_var(ncid_schout,mm,swild11(1:np_global),(/k,1,irec2/),(/1,np_global,1/))
         j=nf90_get_var(ncid_schout,mm,swild12(:,1:np_global),(/1,1,irec2/),(/nvrt,np_global,1/))
         if(j/=NF90_NOERR) call parallel_abort('STEP: nc get dfh')
@@ -1810,13 +1822,11 @@
           dfh(:,ip)=swild12(:,i)
         endif
       enddo !i
-!      enddo !k
 
       if(myrank==0) then
         !write(16,*)'done reading dfh...'
         j=nf90_inq_varid(ncid_schout, "hvel_side",mm)
         if(j/=NF90_NOERR) call parallel_abort('STEP: nc hvel')
-!      do k=1,nvrt
         j=nf90_get_var(ncid_schout,mm,swild12,(/1,1,1,irec2/),(/1,nvrt,ns_global,1/))
         if(j/=NF90_NOERR) call parallel_abort('STEP: nc get hvel')
           !write(16,*)'done reading su2'
@@ -1828,13 +1838,11 @@
           su2(:,isd)=swild12(:,i)
         endif
       enddo !i
-!      enddo !k
 
-!      do k=1,nvrt
       if(myrank==0) then
         j=nf90_get_var(ncid_schout,mm,swild12,(/2,1,1,irec2/),(/1,nvrt,ns_global,1/))
         if(j/=NF90_NOERR) call parallel_abort('STEP: nc get hvel2')
-        write(16,*)'finished reading schout...'
+!        write(16,*)'finished reading sv2...'
       endif !myrank=0
       call mpi_bcast(swild12,nvrt*ns_global,mpi_real,0,comm,istat)
       do i=1,ns_global
@@ -1843,8 +1851,35 @@
           sv2(:,isd)=swild12(:,i)
         endif
       enddo !i
-!      enddo !k
       deallocate(swild12)
+
+!     T,S
+      allocate(swild14(nvrt,ne_global,2),stat=istat)
+      if(istat/=0) call parallel_abort('STEP: alloc swild14')
+      swild14(nvrt,ne_global,2)=0 !test mem
+
+      if(myrank==0) then
+        j=nf90_inq_varid(ncid_schout, "temp_elem",mm)
+        if(j/=NF90_NOERR) call parallel_abort('STEP: nc temp_elem')
+        j=nf90_inq_varid(ncid_schout, "salt_elem",jj)
+        if(j/=NF90_NOERR) call parallel_abort('STEP: nc salt_elem')
+        j=nf90_get_var(ncid_schout,mm,swild14(:,:,1),(/1,1,irec2/),(/nvrt,ne_global,1/))
+        if(j/=NF90_NOERR) call parallel_abort('STEP: nc get temp_elem')
+        j=nf90_get_var(ncid_schout,jj,swild14(:,:,2),(/1,1,irec2/),(/nvrt,ne_global,1/))
+        if(j/=NF90_NOERR) call parallel_abort('STEP: nc get salt_elem')
+        write(16,*)'done reading T,S and schout_'
+      endif !myrank=0
+      call mpi_bcast(swild14,2*nvrt*ne_global,mpi_real,0,comm,istat)
+      if(istat/=MPI_SUCCESS) call parallel_abort('STEP: mpi_bcast in reading T,S')
+      do i=1,ne_global
+        if(iegl(i)%rank==myrank) then
+          ie=iegl(i)%id !up to nea
+          ts_offline(1,:,ie)=swild14(:,i,1)
+          ts_offline(2,:,ie)=swild14(:,i,2)
+        endif
+      enddo !i
+
+      deallocate(swild14)
 
 !     Deal with junks
       where(abs(dfh)>1.d3) dfh=1.d-6
@@ -1897,8 +1932,12 @@
 
 !         Wet node
           htot=dp(i)+eta2(i)
-          if(rough_p(i)<=0.d0) then !time-independent Cd
-            Cdp(i)=abs(rough_p(i))
+          if(rough_p(i)<0.d0) then 
+            !Cdp(i)=abs(rough_p(i))
+            write(errmsg,*)'STEP: rough_p<0 at node ',iplg(i),rough_p(i)
+            call parallel_abort(errmsg)
+          else if(rough_p(i)==0.d0) then 
+            Cdp(i)=0.d0
           else !roughness >0 
             bthick_ori=znl(kbp(i)+1,i)-znl(kbp(i),i)  !thickness of bottom bnd layer
             bthick=max(dzb_min,bthick_ori)
@@ -1914,9 +1953,9 @@
             else
               Cdp(i)=1.d0/(2.5d0*log(bthick/rough_p(i)))**2.d0
 
-              if(dzb_decay/=0.d0.and.bthick_ori<bthick) then !dzb_decay=0 leads to no decay
-                Cdp(i)=Cdp(i)*exp(dzb_decay*(1.d0-bthick_ori/bthick))
-              endif
+!              if(dzb_decay/=0.d0.and.bthick_ori<bthick) then !dzb_decay=0 leads to no decay
+!                Cdp(i)=Cdp(i)*exp(dzb_decay*(1.d0-bthick_ori/bthick))
+!              endif
               !WBL
 #ifdef USE_WWM
               ! Quantities used in both formulations for the WBL
@@ -3246,24 +3285,8 @@
                   call vinter(1,nvrt,1,zs(k,j),kbs(jsj),nvrt,k,zs(:,jsj),sv2(:,jsj),swild(2),ibelow)
                 endif !isd/=i
                 swild10(i,1)=swild(1); swild10(i,2)=swild(2)
-
-!                !Project to side and elem. frame for ics=2
-!                if(ics==1) then
-!                  soln(i,1)=swild(1); soln(i,2)=swild(2)
-!                  !Elem frame
-!                  swild10(1,i)=swild(1); swild10(2,i)=swild(2)
-!                else
-!                  call project_hvec(swild(1),swild(2),sframe(:,:,jsj),sframe(:,:,j),soln(i,1),soln(i,2))
-!                  call project_hvec(swild(1),swild(2),sframe(:,:,jsj),eframe(:,:,ie),swild10(1,i),swild10(2,i))
-!                endif
               enddo !i=1,i34(ie)
 
-              !\nabla{u} const. within an elem. (elem. frame)
-!              dudx=dot_product(swild10(1,1:i34(ie)),dldxy_sd(1:i34(ie),1,ie))
-!              dudy=dot_product(swild10(1,1:i34(ie)),dldxy_sd(1:i34(ie),2,ie))
-!              dvdx=dot_product(swild10(2,1:i34(ie)),dldxy_sd(1:i34(ie),1,ie))
-!              dvdy=dot_product(swild10(2,1:i34(ie)),dldxy_sd(1:i34(ie),2,ie))
- 
               !do i=1,2 !i34(ie) !2 sides per elem.
                 !jsj=elside(i,ie)
                 !if(isbs(jsj)==-1) then !deal with land bnd
@@ -3394,6 +3417,130 @@
 
         deallocate(swild98)
       endif !ihorcon/=0
+
+!...  ishapiro=2: Smag-like filter
+      if(ishapiro==2) then
+!$OMP   parallel default(shared) private(j,k,l,ie,i,jsj,swild,ibelow,swild10,ll, &
+!$OMP   in1,in2,in3,swild2,swild4,delta_wc,vmax,dudx,dudy,dvdx,dvdy)
+
+!$OMP   workshare
+        shapiro=0.d0
+!$OMP   end workshare
+
+!$OMP   do
+        do j=1,ns !residents only
+!          if(isdel(2,j)==0.or.idry_s(j)==1) cycle
+!          if(idry_e(isdel(1,j))==1.or.idry_e(isdel(2,j))==1) cycle
+          if(idry_s(j)==1) cycle
+          if(ihydraulics/=0.and.nhtblocks>0) then
+            if(isblock_sd(1,j)/=0) cycle
+          endif
+  
+          !wet side 
+          vmax=0.d0 !init max gradient
+          do k=kbs(j)+1,nvrt !strength= 0 at bottom
+            do l=1,2 !element
+              ie=isdel(l,j)
+              if(ie<=0) cycle
+              if(idry_e(ie)==1) cycle
+
+              !Wet elem
+              do i=1,i34(ie) !prep. side vel. via vertical interp
+                jsj=elside(i,ie)
+                if(jsj==j) then
+                  swild(1)=su2(k,j)
+                  swild(2)=sv2(k,j)
+                else
+                  call vinter(1,nvrt,1,zs(k,j),kbs(jsj),nvrt,k,zs(:,jsj),su2(:,jsj),swild(1),ibelow)
+                  call vinter(1,nvrt,1,zs(k,j),kbs(jsj),nvrt,k,zs(:,jsj),sv2(:,jsj),swild(2),ibelow)
+                endif !isd/=i
+                !in ll frame if ics=2
+                swild10(i,1)=swild(1); swild10(i,2)=swild(2)
+              enddo !i=1,i34(ie)
+
+              !Reconstruct local gradient
+              ll=lindex_s(j,ie)
+              if(ll==0) then
+                write(errmsg,*)'STEP: Cannot find a side(2)'
+                call parallel_abort(errmsg)
+              endif
+              in1=nxq(1,ll,i34(ie))
+              in2=nxq(i34(ie)-1,ll,i34(ie))
+             
+              !2x2 matrix
+              if(i34(ie)==3) then
+                swild4(1,1)=xs_el(in1,ie)-xs_el(ll,ie)
+                swild4(1,2)=ys_el(in1,ie)-ys_el(ll,ie)
+                swild4(2,1)=xs_el(in2,ie)-xs_el(ll,ie)
+                swild4(2,2)=ys_el(in2,ie)-ys_el(ll,ie)
+                !RHS; 2nd index is (u,v)
+                swild2(1,1:2)=swild10(in1,1:2)-swild10(ll,1:2)
+                swild2(2,1:2)=swild10(in2,1:2)-swild10(ll,1:2)
+              else !quad
+                in3=nxq(2,ll,i34(ie))
+                swild4(1,1)=xs_el(in3,ie)-xs_el(ll,ie)
+                swild4(1,2)=ys_el(in3,ie)-ys_el(ll,ie)
+                swild4(2,1)=xs_el(in2,ie)-xs_el(in1,ie)
+                swild4(2,2)=ys_el(in2,ie)-ys_el(in1,ie)
+                swild2(1,1:2)=swild10(in3,1:2)-swild10(ll,1:2)
+                swild2(2,1:2)=swild10(in2,1:2)-swild10(in1,1:2)
+              endif !i34(ie)
+              delta_wc=swild4(1,1)*swild4(2,2)-swild4(1,2)*swild4(2,1)
+              if(delta_wc==0.d0) then
+                write(errmsg,*)'STEP: delta_wc=0:',delta_wc,ielg(ie)
+                call parallel_abort(errmsg)
+              endif
+         
+              dudx=(swild2(1,1)*swild4(2,2)-swild2(2,1)*swild4(1,2))/delta_wc
+              dudy=(swild2(2,1)*swild4(1,1)-swild2(1,1)*swild4(2,1))/delta_wc
+              dvdx=(swild2(1,2)*swild4(2,2)-swild2(2,2)*swild4(1,2))/delta_wc
+              dvdy=(swild2(2,2)*swild4(1,1)-swild2(1,2)*swild4(2,1))/delta_wc
+
+              !Original Smag; Griffiths used a different one
+              vmax=max(vmax,sqrt(dudx*dudx+dvdy*dvdy+0.5d0*(dudy+dvdx)**2)) !s^(-1)
+            enddo !l=1,2
+          enddo !k=kbs(j)+1,nvrt 
+
+          shapiro(j)=0.5d0*tanh(dt*vmax*shapiro0)
+
+        enddo !j=1,ns
+!$OMP   end do
+!$OMP   end parallel
+
+        call exchange_s2d(shapiro)
+
+        !Smooth shapiro()
+        do mm=1,2
+!$OMP     parallel default(shared) private(j)
+          !Use bcc as temp array
+
+!$OMP     do
+          do j=1,ns
+            if(isdel(2,j)==0) then !isidenei2 not defined
+              bcc(1,1,j)=shapiro(j)
+            else
+              bcc(1,1,j)=shapiro(j)+0.5d0/4.d0*(sum(shapiro(isidenei2(1:4,j)))-4.d0*shapiro(j)) 
+            endif
+          enddo !j=1,ns
+!$OMP     end do
+
+!$OMP     workshare
+          shapiro(1:ns)=bcc(1,1,1:ns)
+!$OMP     end workshare
+!$OMP     end parallel
+
+          call exchange_s2d(shapiro)
+
+          !Debug
+!          if(abs(time/86400.d0-0.5d0)<1.d-3) then
+!            do j=1,ns  
+!              write(12,'(a,10(1x,e19.9))')'shapiro=',xlon(isidenode(1,j))/pi*180, &
+!     &ylat(isidenode(1,j))/pi*180,shapiro(j)
+!            enddo !j
+!          endif
+
+        enddo !mm
+      endif !ishapiro==2
 
       if(myrank==0) write(16,*)'done hvis... '
 
@@ -4927,10 +5074,10 @@
         ghat1(2,i)=ghat1(2,i)/real(i34(i),rkind)
       
         !Finish off terms in F, F^\alpha and f_b
-        botf1=grav*detpdx-dprdx/rho0 !const in each elem
-        botf2=grav*detpdy-dprdy/rho0
-        !botf1=0.69d0*grav*detpdx-dprdx/rho0 !const in each elem
-        !botf2=0.69d0*grav*detpdy-dprdy/rho0
+        botf1=grav2*detpdx-dprdx/rho0 !const in each elem
+        botf2=grav2*detpdy-dprdy/rho0
+        !botf1=0.69d0*grav2*detpdx-dprdx/rho0 !const in each elem
+        !botf2=0.69d0*grav2*detpdy-dprdy/rho0
         tmp1=0.d0; tmp2=0.d0 !elem average of all terms; into ghat1
         do j=1,i34(i) !side
           isd=elside(j,i)
@@ -5048,9 +5195,9 @@
             dot2=(xel(id3,ie)-xel(id2,ie))*(xel(id,ie)-xel(id3,ie))+ &
      &           (yel(id3,ie)-yel(id2,ie))*(yel(id,ie)-yel(id3,ie))
             dot3=-dot1-dot2
-            tmp0=area(ie)/6.d0+grav*thetai*thetai*dt*dt/4.d0/area(ie)*hhatb*dot1
-            swild(1)=area(ie)/12.d0+grav*thetai*thetai*dt*dt/4.d0/area(ie)*hhatb*dot2 !for node (i,1)
-            swild(2)=area(ie)/12.d0+grav*thetai*thetai*dt*dt/4.d0/area(ie)*hhatb*dot3 !for node (i,2)
+            tmp0=area(ie)/6.d0+grav2*thetai*thetai*dt*dt/4.d0/area(ie)*hhatb*dot1
+            swild(1)=area(ie)/12.d0+grav2*thetai*thetai*dt*dt/4.d0/area(ie)*hhatb*dot2 !for node (i,1)
+            swild(2)=area(ie)/12.d0+grav2*thetai*thetai*dt*dt/4.d0/area(ie)*hhatb*dot3 !for node (i,2)
             sparsem(0,i)=sparsem(0,i)+tmp0
 
             do jj=1,2 !other 2 nodes
@@ -5086,7 +5233,7 @@
               swild10(1,l)=quad_int(1,ie,id,l)
               swild10(2,l)=quad_int(2,ie,id,l)
 
-              sparsem(indx,i)=sparsem(indx,i)+swild10(1,l)+grav*thetai*thetai*dt*dt* &
+              sparsem(indx,i)=sparsem(indx,i)+swild10(1,l)+grav2*thetai*thetai*dt*dt* &
      &hhatb*swild10(2,l)
 
               !Debug
@@ -5147,7 +5294,7 @@
               detadx=dot_product(eta2(elnode(1:3,ie)),dldxy(1:3,1,ie))
               detady=dot_product(eta2(elnode(1:3,ie)),dldxy(1:3,2,ie))
               tmp=dldxy(id,1,ie)*detadx+dldxy(id,2,ie)*detady
-              qel(i)=qel(i)-area(ie)*grav*dt*dt*thetai*(1.d0-thetai)*hhatb*tmp
+              qel(i)=qel(i)-area(ie)*grav2*dt*dt*thetai*(1.d0-thetai)*hhatb*tmp
             endif !idry
 
           else !quad
@@ -5158,7 +5305,7 @@
               else
                 tmp2=bdef2(nd)-bdef1(nd)
               endif !imm 
-              qel(i)=qel(i)+(eta2(nd)+tmp2)*swild10(1,l)-eta2(nd)*grav*thetai*(1.d0-thetai)*dt*dt*hhatb*swild10(2,l)
+              qel(i)=qel(i)+(eta2(nd)+tmp2)*swild10(1,l)-eta2(nd)*grav2*thetai*(1.d0-thetai)*dt*dt*hhatb*swild10(2,l)
             enddo !l
           endif !i34       
 
@@ -5635,8 +5782,8 @@
       swild98(1,:,:)=su2(:,:)
       swild98(2,:,:)=sv2(:,:)
       ! Storing the barotropic gradient for outputting purpose		  
-      bpgr(:,1) = -grav*(1-thetai)*deta1_dx(:)-grav*thetai*deta2_dx(:)
-      bpgr(:,2) = -grav*(1-thetai)*deta1_dy(:)-grav*thetai*deta2_dy(:)
+      bpgr(:,1) = -grav2*(1-thetai)*deta1_dx(:)-grav2*thetai*deta2_dx(:)
+      bpgr(:,2) = -grav2*(1-thetai)*deta1_dy(:)-grav2*thetai*deta2_dy(:)
 !$OMP end workshare
 
 !...  Along each side
@@ -5672,11 +5819,11 @@
           tauy2=(tau(2,node1)+tau(2,node2))/2.d0
 
           !hat_gam_[xy] has a dimension of m/s
-          !hat_gam_x=sdbt(1,nvrt,j)+dt*(cori(j)*sv2(nvrt,j)-dpr_dx(j)/rho0+0.69d0*grav*detp_dx(j)+ &
-          hat_gam_x=sdbt(1,nvrt,j)+dt*(cori(j)*sv2(nvrt,j)-dpr_dx(j)/rho0+grav*detp_dx(j)+ &
-     &bcc(1,kbs(j),j)+taux2/htot)-grav*(1-thetai)*dt*deta1_dx(j)-grav*thetai*dt*deta2_dx(j)
-          hat_gam_y=sdbt(2,nvrt,j)+dt*(-cori(j)*su2(nvrt,j)-dpr_dy(j)/rho0+grav*detp_dy(j)+ &
-     &bcc(2,kbs(j),j)+tauy2/htot)-grav*(1-thetai)*dt*deta1_dy(j)-grav*thetai*dt*deta2_dy(j)
+          !hat_gam_x=sdbt(1,nvrt,j)+dt*(cori(j)*sv2(nvrt,j)-dpr_dx(j)/rho0+0.69d0*grav2*detp_dx(j)+ &
+          hat_gam_x=sdbt(1,nvrt,j)+dt*(cori(j)*sv2(nvrt,j)-dpr_dx(j)/rho0+grav2*detp_dx(j)+ &
+     &bcc(1,kbs(j),j)+taux2/htot)-grav2*(1-thetai)*dt*deta1_dx(j)-grav2*thetai*dt*deta2_dx(j)
+          hat_gam_y=sdbt(2,nvrt,j)+dt*(-cori(j)*su2(nvrt,j)-dpr_dy(j)/rho0+grav2*detp_dy(j)+ &
+     &bcc(2,kbs(j),j)+tauy2/htot)-grav2*(1-thetai)*dt*deta1_dy(j)-grav2*thetai*dt*deta2_dy(j)
 !         Radiation stress
 #ifdef USE_WWM
           !wwave_force in eframe
@@ -5762,16 +5909,16 @@
           rrhs(2,kin)=0.d0
 !	  Elevation gradient, atmo. pressure and tidal potential
           if(k<nvrt) then
-            rrhs(1,kin)=rrhs(1,kin)-dzz(k+1)/2.d0*dt*(grav*thetai*deta2_dx(j)+ &
-                       &grav*(1.d0-thetai)*deta1_dx(j)+dpr_dx(j)/rho0-grav*detp_dx(j))
-            rrhs(2,kin)=rrhs(2,kin)-dzz(k+1)/2.d0*dt*(grav*thetai*deta2_dy(j)+ &
-                       &grav*(1.d0-thetai)*deta1_dy(j)+dpr_dy(j)/rho0-grav*detp_dy(j))
+            rrhs(1,kin)=rrhs(1,kin)-dzz(k+1)/2.d0*dt*(grav2*thetai*deta2_dx(j)+ &
+                       &grav2*(1.d0-thetai)*deta1_dx(j)+dpr_dx(j)/rho0-grav2*detp_dx(j))
+            rrhs(2,kin)=rrhs(2,kin)-dzz(k+1)/2.d0*dt*(grav2*thetai*deta2_dy(j)+ &
+                       &grav2*(1.d0-thetai)*deta1_dy(j)+dpr_dy(j)/rho0-grav2*detp_dy(j))
           endif
           if(k>kbs(j)+1) then 
-            rrhs(1,kin)=rrhs(1,kin)-dzz(k)/2.d0*dt*(grav*thetai*deta2_dx(j)+ &
-                       &grav*(1.d0-thetai)*deta1_dx(j)+dpr_dx(j)/rho0-grav*detp_dx(j))
-            rrhs(2,kin)=rrhs(2,kin)-dzz(k)/2.d0*dt*(grav*thetai*deta2_dy(j)+ &
-                       &grav*(1.d0-thetai)*deta1_dy(j)+dpr_dy(j)/rho0-grav*detp_dy(j))
+            rrhs(1,kin)=rrhs(1,kin)-dzz(k)/2.d0*dt*(grav2*thetai*deta2_dx(j)+ &
+                       &grav2*(1.d0-thetai)*deta1_dx(j)+dpr_dx(j)/rho0-grav2*detp_dx(j))
+            rrhs(2,kin)=rrhs(2,kin)-dzz(k)/2.d0*dt*(grav2*thetai*deta2_dy(j)+ &
+                       &grav2*(1.d0-thetai)*deta1_dy(j)+dpr_dy(j)/rho0-grav2*detp_dy(j))
           endif
 
 !	  Coriolis, advection, wind stress, and horizontal viscosity
@@ -6932,6 +7079,13 @@
 !$OMP end single
 #endif /*USE_AGE*/
 
+!       Overwrite T,S for offline transport option
+        if(itransport_only/=0) then
+!$OMP     workshare
+          tr_el(1:2,:,1:nea)=ts_offline(1:2,:,:)
+!$OMP     end workshare
+        endif !itransport_only/
+
 !       Convert to nodes and whole levels
 !$OMP   do 
         do i=1,nea
@@ -7169,10 +7323,9 @@
         if(nwild(i)==1) then !marsh elem
           if(smax>0.5d0) then !drowned
             imarsh(i)=0
-!Error: OMP race
-            Cdp(elnode(1:i34(i),i))=0.001d0
-            Cd(elside(1:i34(i),i))=0.001d0
-            rough_p(elnode(1:i34(i),i))=1.d-4
+!            Cdp(elnode(1:i34(i),i))=0.001d0
+!            Cd(elside(1:i34(i),i))=0.001d0
+!            rough_p(elnode(1:i34(i),i))=1.d-4
           endif !smax
         else !non-marsh elem @last step
           if(smax<=0.d0.and.smin>=-1.d0) then !create marsh
@@ -7192,25 +7345,60 @@
       enddo !i=1,ne
 !$OMP end do
 
-      !Set Cd etc for marsh
+      !Set Cd etc for marsh and also drowned marsh
 !$OMP workshare
       sav_di=0.d0; sav_h=0.d0; sav_nv=0.d0; sav_alpha=0.d0
 !$OMP end workshare
 !$OMP do 
-      do i=1,ne
-        if(imarsh(i)==1) then
-          if(isav==0) then
-            Cdp(elnode(1:i34(i),i))=0.05d0
-            Cd(elside(1:i34(i),i))=0.05d0
-            rough_p(elnode(1:i34(i),i))=1.d-2
-          else
-            sav_di(elnode(1:i34(i),i))=sav_di0
-            sav_h(elnode(1:i34(i),i))=sav_h0
-            sav_nv(elnode(1:i34(i),i))=sav_nv0
-            sav_alpha(elnode(1:i34(i),i))=sav_di0*sav_nv0*sav_cd/2.d0
-          endif !isav
-        endif
+      do i=1,np
+        do j=1,nne(i)
+          ie=indel(j,i)
+          if(imarsh(ie)==1) then
+            if(isav==0) then
+              Cdp(i)=0.05d0
+              rough_p(i)=1.d-2
+            else !isav/=0
+              sav_di(i)=sav_di0
+              sav_h(i)=sav_h0
+              sav_nv(i)=sav_nv0
+              sav_alpha(i)=sav_di0*sav_nv0*sav_cd(i)/2.d0
+            endif !isav 
+          endif !imarsh
+
+          !drowned marsh
+          if(nwild(ie)==1.and.imarsh(ie)==0) then
+            Cdp(i)=0.001d0
+            rough_p(i)=1.d-4
+          endif
+        enddo !j
       enddo !i
+!$OMP end do
+
+!$OMP do
+      do i=1,ns
+        do j=1,2
+          ie=isdel(j,i)
+          if(isav==0.and.imarsh(ie)==1) Cd(i)=0.05d0
+          if(nwild(ie)==1.and.imarsh(ie)==0) Cd(i)=0.001d0
+        enddo !j
+      enddo !i
+!$OMP end do
+      
+
+!      do i=1,ne
+!        if(imarsh(i)==1) then
+!          if(isav==0) then
+!            Cdp(elnode(1:i34(i),i))=0.05d0
+!            Cd(elside(1:i34(i),i))=0.05d0
+!            rough_p(elnode(1:i34(i),i))=1.d-2
+!          else
+!            sav_di(elnode(1:i34(i),i))=sav_di0
+!            sav_h(elnode(1:i34(i),i))=sav_h0
+!            sav_nv(elnode(1:i34(i),i))=sav_nv0
+!            sav_alpha(elnode(1:i34(i),i))=sav_di0*sav_nv0*sav_cd0/2.d0
+!          endif !isav
+!        endif
+!      enddo !i
 !$OMP end do
 
 !$OMP master
@@ -8401,13 +8589,28 @@
        &'ICM_rdephcanveg',4,1,nea,dble(rdephcanveg(:,3)))
         endif
 
-        if(iof_icm(177)==1.and.isav_icm/=0) call writeout_nc(id_out_var(noutput+181), &
-     &'ICM_PrmPrdtsav',5,nvrt,nea,dble(PrmPrdtsav))
-        if(iof_icm(178)==1.and.iveg_icm/=0) call writeout_nc(id_out_var(noutput+182), &
+        if(iof_icm(177)==1.and.iveg_icm/=0) call writeout_nc(id_out_var(noutput+181), &
      &'ICM_PrmPrdtveg',4,1,nea,dble(PrmPrdtveg))
+        if(iof_icm(178)==1.and.isav_icm/=0) call writeout_nc(id_out_var(noutput+182), &
+     &'ICM_PrmPrdtsav',5,nvrt,nea,dble(PrmPrdtsav))
 
-        noutput=noutput+178
-        icount=178 !offset
+        if(iof_icm(179)==1.and.isav_icm/=0) call writeout_nc(id_out_var(noutput+183), &
+     &'ICM_plfsav',5,nvrt,nea,dble(plfsav))
+        if(iof_icm(180)==1.and.isav_icm/=0) call writeout_nc(id_out_var(noutput+184), &
+     &'ICM_pmaxsav',5,nvrt,nea,dble(pmaxsav))
+        if(iof_icm(181)==1.and.isav_icm/=0) call writeout_nc(id_out_var(noutput+185), &
+     &'ICM_fisav',5,nvrt,nea,dble(fisav))
+        if(iof_icm(182)==1.and.isav_icm/=0) call writeout_nc(id_out_var(noutput+186), &
+     &'ICM_fnsav',5,nvrt,nea,dble(fnsav))
+        if(iof_icm(183)==1.and.isav_icm/=0) call writeout_nc(id_out_var(noutput+187), &
+     &'ICM_fpsav',5,nvrt,nea,dble(fpsav))
+
+
+        if(iof_icm(184)==1) call writeout_nc(id_out_var(noutput+188), &
+     &'ICM_rad',5,nvrt,nea,dble(rad_el))
+
+        noutput=noutput+184
+        icount=184 !offset
 
         do i=1,ntrs(7)
           write(it_char,'(i72)')i
@@ -8448,11 +8651,11 @@
 #ifdef USE_FABM
         do i=1,ntrs(11)
 !          call writeout_nc(id_out_var(noutput+i+4),trim(fs%model%state_variables(i)%name),2,nvrt,npa,tr_nd(i+fabm_istart-1,:,:))
-#if _FABM_API_VERSION_ < 1
-          call writeout_nc(id_out_var(noutput+i+4),trim(fs%model%state_variables(i)%name),2,nvrt,npa,tr_nd(i+fabm_istart-1,:,:))
-#else
+!#if _FABM_API_VERSION_ < 1
+!          call writeout_nc(id_out_var(noutput+i+4),trim(fs%model%state_variables(i)%name),2,nvrt,npa,tr_nd(i+fabm_istart-1,:,:))
+!#else
           call writeout_nc(id_out_var(noutput+i+4),trim(fs%model%interior_state_variables(i)%name),2,nvrt,npa,tr_nd(i+fabm_istart-1,:,:))
-#endif
+!#endif
         end do
         noutput=noutput+ntrs(11)
 
@@ -8559,9 +8762,9 @@
         if(iof_ana(2)==1) call writeout_nc(id_out_var(noutput+6), &
      &'ANA_air_pres_grad_y',7,1,nsa,dpr_dy/rho0)
         if(iof_ana(3)==1) call writeout_nc(id_out_var(noutput+7), &
-     &'ANA_tide_pot_grad_x',7,1,nsa,grav*detp_dx)
+     &'ANA_tide_pot_grad_x',7,1,nsa,grav2*detp_dx)
         if(iof_ana(4)==1) call writeout_nc(id_out_var(noutput+8), &
-     &'ANA_tide_pot_grad_y',7,1,nsa,grav*detp_dy)
+     &'ANA_tide_pot_grad_y',7,1,nsa,grav2*detp_dy)
         if(iof_ana(5)==1) call writeout_nc(id_out_var(noutput+9), &
      &'ANA_hor_viscosity_x',8,nvrt,nsa,d2uv(1,:,:))
         if(iof_ana(6)==1) call writeout_nc(id_out_var(noutput+10), &
@@ -9193,6 +9396,7 @@
       deallocate(hp_int,uth,vth,d2uv,dr_dxy,bcc)
       if(allocated(rwild)) deallocate(rwild)
       deallocate(swild9)
+      if(allocated(ts_offline)) deallocate(ts_offline)
 
 #ifdef USE_NAPZD
       deallocate(Bio_bdefp)

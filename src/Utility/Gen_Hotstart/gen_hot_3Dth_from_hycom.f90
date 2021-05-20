@@ -769,20 +769,21 @@
                 endif
               enddo !ix
 
-              if(ixy(i,1)==0.or.ixy(i,2)==0) then
-                write(11,*)'Did not find parent:',i,ixy(i,1:2)
-                stop
-              endif
-              if(xrat<0.or.xrat>1.or.yrat<0.or.yrat>1) then
-                write(11,*)'Ratio out of bound:',i,xrat,yrat
-                stop
-              endif
+              if(ixy(i,1)/=0.and.ixy(i,2)/=0) then !found
+!                write(11,*)'Did not find parent:',i,ixy(i,1:2)
+!                stop
+                if(xrat<0.or.xrat>1.or.yrat<0.or.yrat>1) then
+                  write(11,*)'Ratio out of bound:',i,xrat,yrat
+                  stop
+                endif
 
-              !Bilinear shape function
-              arco(1,i)=(1-xrat)*(1-yrat)
-              arco(2,i)=xrat*(1-yrat)
-              arco(4,i)=(1-xrat)*yrat
-              arco(3,i)=xrat*yrat
+                !Bilinear shape function
+                arco(1,i)=(1-xrat)*(1-yrat)
+                arco(2,i)=xrat*(1-yrat)
+                arco(4,i)=(1-xrat)*yrat
+                arco(3,i)=xrat*yrat
+              endif !ixy
+
             else !interp_mode=1; generic search with UG
               do ix=1,ixlen-1 
                 do iy=1,iylen-1 
@@ -797,7 +798,7 @@
                   rat=abs(a1+a2+a3+a4-b1-b2)/(b1+b2)
                   if(rat<small1) then
                     ixy(i,1)=ix; ixy(i,2)=iy
-!                 Find a triangle
+!                   Find a triangle
                     in=0 !flag
                     do l=1,2
                       ap=abs(signa_single(xl(i),x1,x3,yl(i),y1,y3))
@@ -1044,23 +1045,29 @@
                 write(11,*)'lev:',lev,ix,iy,k,i,ilen,vrat,kbp(ix,iy),z(k,i),zm(ix,iy,1:ilen)
                 stop
               endif
-              wild2(1,1)=temp(ix,iy,lev)*(1-vrat)+temp(ix,iy,lev+1)*vrat
-              wild2(1,2)=salt(ix,iy,lev)*(1-vrat)+salt(ix,iy,lev+1)*vrat
-              wild2(2,1)=temp(ix+1,iy,lev)*(1-vrat)+temp(ix+1,iy,lev+1)*vrat
-              wild2(2,2)=salt(ix+1,iy,lev)*(1-vrat)+salt(ix+1,iy,lev+1)*vrat
-              wild2(3,1)=temp(ix+1,iy+1,lev)*(1-vrat)+temp(ix+1,iy+1,lev+1)*vrat
-              wild2(3,2)=salt(ix+1,iy+1,lev)*(1-vrat)+salt(ix+1,iy+1,lev+1)*vrat
-              wild2(4,1)=temp(ix,iy+1,lev)*(1-vrat)+temp(ix,iy+1,lev+1)*vrat
-              wild2(4,2)=salt(ix,iy+1,lev)*(1-vrat)+salt(ix,iy+1,lev+1)*vrat
 
-              wild2(5,1)=uvel(ix,iy,lev)*(1-vrat)+uvel(ix,iy,lev+1)*vrat
-              wild2(5,2)=vvel(ix,iy,lev)*(1-vrat)+vvel(ix,iy,lev+1)*vrat
-              wild2(6,1)=uvel(ix+1,iy,lev)*(1-vrat)+uvel(ix+1,iy,lev+1)*vrat
-              wild2(6,2)=vvel(ix+1,iy,lev)*(1-vrat)+vvel(ix+1,iy,lev+1)*vrat
-              wild2(7,1)=uvel(ix+1,iy+1,lev)*(1-vrat)+uvel(ix+1,iy+1,lev+1)*vrat
-              wild2(7,2)=vvel(ix+1,iy+1,lev)*(1-vrat)+vvel(ix+1,iy+1,lev+1)*vrat
-              wild2(8,1)=uvel(ix,iy+1,lev)*(1-vrat)+uvel(ix,iy+1,lev+1)*vrat
-              wild2(8,2)=vvel(ix,iy+1,lev)*(1-vrat)+vvel(ix,iy+1,lev+1)*vrat
+              !Impose bounds for odd cases
+              lev2=lev+1
+              lev=max(1,min(ilen,lev))
+              lev2=max(1,min(ilen,lev2))
+
+              wild2(1,1)=temp(ix,iy,lev)*(1-vrat)+temp(ix,iy,lev2)*vrat
+              wild2(1,2)=salt(ix,iy,lev)*(1-vrat)+salt(ix,iy,lev2)*vrat
+              wild2(2,1)=temp(ix+1,iy,lev)*(1-vrat)+temp(ix+1,iy,lev2)*vrat
+              wild2(2,2)=salt(ix+1,iy,lev)*(1-vrat)+salt(ix+1,iy,lev2)*vrat
+              wild2(3,1)=temp(ix+1,iy+1,lev)*(1-vrat)+temp(ix+1,iy+1,lev2)*vrat
+              wild2(3,2)=salt(ix+1,iy+1,lev)*(1-vrat)+salt(ix+1,iy+1,lev2)*vrat
+              wild2(4,1)=temp(ix,iy+1,lev)*(1-vrat)+temp(ix,iy+1,lev2)*vrat
+              wild2(4,2)=salt(ix,iy+1,lev)*(1-vrat)+salt(ix,iy+1,lev2)*vrat
+
+              wild2(5,1)=uvel(ix,iy,lev)*(1-vrat)+uvel(ix,iy,lev2)*vrat
+              wild2(5,2)=vvel(ix,iy,lev)*(1-vrat)+vvel(ix,iy,lev2)*vrat
+              wild2(6,1)=uvel(ix+1,iy,lev)*(1-vrat)+uvel(ix+1,iy,lev2)*vrat
+              wild2(6,2)=vvel(ix+1,iy,lev)*(1-vrat)+vvel(ix+1,iy,lev2)*vrat
+              wild2(7,1)=uvel(ix+1,iy+1,lev)*(1-vrat)+uvel(ix+1,iy+1,lev2)*vrat
+              wild2(7,2)=vvel(ix+1,iy+1,lev)*(1-vrat)+vvel(ix+1,iy+1,lev2)*vrat
+              wild2(8,1)=uvel(ix,iy+1,lev)*(1-vrat)+uvel(ix,iy+1,lev2)*vrat
+              wild2(8,2)=vvel(ix,iy+1,lev)*(1-vrat)+vvel(ix,iy+1,lev2)*vrat
 
               tempout(k,i)=dot_product(wild2(1:4,1),arco(1:4,i))
               saltout(k,i)=dot_product(wild2(1:4,2),arco(1:4,i))

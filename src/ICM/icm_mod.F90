@@ -40,8 +40,9 @@ module icm_mod
   integer,save :: iSed,iRea,iBen,iTBen
   integer,save :: iZoo,iPh
   integer,save :: iAtm,iCheck,iout_icm
-  integer,save :: iSet,iTurb,iWRea,iTSS 
+  integer,save :: iSet !,iTurb,iWRea,iTSS 
   integer,save :: isav_icm,iveg_icm !ncai_sav, ncai_veg 
+  integer,save :: idry_icm
  
 !  !ICM region
 !  integer,save,allocatable :: reg_icm(:) !nea
@@ -53,7 +54,7 @@ module icm_mod
   real(kind=iwp),save,allocatable,dimension(:,:) :: ZB1,ZB2,PB1,PB2,PB3,RPOC,LPOC,DOC,RPON,LPON,DON,NH4,NO3
   real(kind=iwp),save,allocatable,dimension(:,:) :: RPOP,LPOP,DOP,PO4t,SU,SAt,COD,DOO
   !(nvrt,nea)>> 1 to nvrt: bottom to surface
-  real(kind=iwp),save,allocatable,dimension(:,:) :: Chl_el,PrmPrdt,DIN_el,PON_el
+  real(kind=iwp),save,allocatable,dimension(:,:) :: Chl_el,PrmPrdt,DIN_el,PON_el,rad_el
 
   !ncai_sav + ncai_veg :: uniformed vegetation height, density
   real(kind=iwp),save,allocatable,dimension(:) :: tthcan,ttdens !(nea) 
@@ -97,8 +98,7 @@ module icm_mod
   integer,save :: irSi, iLimit
   
   !TSED
-  real(kind=iwp),save,allocatable,dimension(:) :: PC2TSS 
-  real(kind=iwp),save :: WSSED
+  real(kind=iwp),save,allocatable,dimension(:) :: PC2TSS,WSSED 
   
   !DO
   real(kind=iwp),save,allocatable,dimension(:) :: WMS 
@@ -231,7 +231,7 @@ module icm_mod
   real(kind=iwp),save,allocatable,dimension(:) :: EROH2S, EROLPOC,ERORPOC !nea
 
   !settling
-  integer,save :: iReg_WS,iWS
+  !integer,save :: iReg_WS,iWS
   integer,save,allocatable :: reg_WS(:) !nea
   real(kind=iwp),save,allocatable,dimension(:) :: WSRP,WSLP,WSPB1,WSPB2,WSPB3,turb,WRea
 

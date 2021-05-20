@@ -76,8 +76,8 @@
 !        stop
 !      endif
 
-      file63=adjustl(file63)
-      len_file63=len_trim(file63)
+!      file63=adjustl(file63)
+!      len_file63=len_trim(file63)
 
 !...  Header
       !Returned vars: ne,np,ns,nrec,[x y dp](np),
@@ -138,10 +138,10 @@
 
         if(icomb==0) then !uncombined
           do irank=0,nproc-1
-            call get_outvar_multirecord(1,iday,varname,irec1,irec2,np,last_dim,nvrt,nrec3,outvar,i23d,ivs,eta2,irank)
+            call get_outvar_multirecord(iday,varname,irec1,irec2,np,last_dim,nvrt,nrec3,outvar,i23d,ivs,eta2,irank)
           enddo !irank
         else
-          call get_outvar_multirecord(1,iday,varname,irec1,irec2,np,last_dim,nvrt,nrec3,outvar,i23d,ivs,eta2)
+          call get_outvar_multirecord(iday,varname,irec1,irec2,np,last_dim,nvrt,nrec3,outvar,i23d,ivs,eta2)
         endif
 !        print*, 'done reading records:',irec1,irec2
 

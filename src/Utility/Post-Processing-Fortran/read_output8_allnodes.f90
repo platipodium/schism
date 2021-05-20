@@ -184,7 +184,7 @@
       endif
       allocate(ic3(4,ne),elside(4,ne),isdel(2,ns2),isidenode(2,ns2),xcj(ns2),ycj(ns2),stat=istat)
       if(istat/=0) stop 'Allocation error: side(0)'
-      call schism_geometry_single(np,ne,ns2,x,y,i34,elnode(1:4,1:ne),ic3(1:4,1:ne), &
+      call schism_geometry_single(np,ne,ns2,real(x),real(y),i34,elnode(1:4,1:ne),ic3(1:4,1:ne), &
      &elside(1:4,1:ne),isdel,isidenode,xcj,ycj)
 
       !For dimensioning purpose
@@ -263,10 +263,10 @@
 
         if(icomb==0) then !uncombined
           do irank=0,nproc-1
-            call get_outvar_multirecord(1,iday,varname,irec1,irec2,np,last_dim,nvrt,nrec3,outvar,i23d,ivs,eta2,irank)
+            call get_outvar_multirecord(iday,varname,irec1,irec2,np,last_dim,nvrt,nrec3,outvar,i23d,ivs,eta2,irank)
           enddo !irank
         else
-          call get_outvar_multirecord(1,iday,varname,irec1,irec2,np,last_dim,nvrt,nrec3,outvar,i23d,ivs,eta2)
+          call get_outvar_multirecord(iday,varname,irec1,irec2,np,last_dim,nvrt,nrec3,outvar,i23d,ivs,eta2)
         endif
 
         !Available now:
